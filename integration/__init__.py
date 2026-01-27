@@ -1,49 +1,43 @@
-from pydantic import BaseModel
-from typing import Optional
-from base import Integrations, CatalogBase
-from shopify import ShopifyEngine
+"""
+E-Commerce Integration Platform - Factory Pattern.
 
+Provides a unified way to instantiate platform-specific engines
+using a factory function.
+"""
 
-__all__ = ["ShopifyEngine", "Integrations", "get_engine", "get_integration_provider"]
+from base.integrations import Integrations
+from shopify.connection_adapter.adapter import ShopifyEngine
 
+__all__ = ["ShopifyEngine", "Integrations", "get_engine"]
 
+# Engine registry - maps integration names to their engine classes
 _ENGINE_REGISTRY = {
     Integrations.SHOPIFY.value: ShopifyEngine,
+    # Add new integrations here:
+    # Integrations.MAGENTO.value: MagentoEngine,
 }
 
-class _IntegrationPayload(BaseModel):
-    client_id: str
-    store_url: str  
-    integration_key: str
-    integration_secret: str
-    provider: str
-    webhook_secret: Optional[str] = None
 
-    model_config = {"from_attributes": True}
-
-
-def get_engine(integration_name: str, integration_payload: _IntegrationPayload):
+def get_engine(integration_name: str, client_id: str):
     """
-    Get integration engine instance.
-    
+    Factory function to create platform-specific engine instances.
+
     Args:
-        integration_name: Name of integration (e.g., "shopify")
-        integration_data: Dict with integration credentials and config
-            Required keys:
-                - client_id: str
-                - store_url: str
-                - integration_key: str (decrypted)
-                - integration_secret: str (decrypted)
-                - webhook_secret: str (decrypted, optional)
-    
+        integration_name: The platform identifier (e.g., "shopify", "woocommerce")
+        client_id: Unique identifier for the client/store
     Returns:
-        Engine instance initialized with integration_data
+        An instance of the appropriate engine (e.g., ShopifyEngine)
+    Raises:
+        ValueError: If the integration name is not supported
+    Example:
+        >>> engine = get_engine("shopify", "client_123")
+        >>> products = engine.list_products(limit=10)
     """
-    integration_data = integration_payload
     engine_cls = _ENGINE_REGISTRY.get(integration_name)
-    if not engine_cls:
-        raise ValueError(f"Unknown integration: {integration_name}")
-    return engine_cls(integration_data)
-
-def get_integration_provider():
-    return [integration.value for integration in Integrations]
+    if engine_cls is None:
+        supported = ", ".join(_ENGINE_REGISTRY.keys())
+        raise ValueError(
+            f"Unknown integration: '{integration_name}'. "
+            f"Supported integrations: {supported}"
+        )
+    return engine_cls(client_id)
