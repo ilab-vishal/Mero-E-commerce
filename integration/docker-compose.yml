@@ -1,0 +1,98 @@
+networks:
+  XYZ:
+    driver: bridge
+
+volumes:
+  elastic_data:
+  elastic_certs:
+  elastic_config:
+
+
+services:
+  # ----------- ELASTICSEARCH -----------
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "true"
+      ELASTIC_PASSWORD: ${ELASTIC_PASS}
+      xpack.security.http.ssl.enabled: "false"
+      xpack.security.transport.ssl.enabled: "false"
+      action.auto_create_index: "true"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elastic_data:/usr/share/elasticsearch/data
+      - elastic_config:/usr/share/elasticsearch/config
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -s http://localhost:9200/ >/dev/null || exit 1" ]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - XYZ
+
+  # ---------------- KIBANA -------------
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.4
+    container_name: kibana
+    restart: unless-stopped
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      SERVER_HOST: 0.0.0.0
+      ELASTICSEARCH_SERVICEACCOUNTTOKEN: ${KIBANA_ES_TOKEN}
+      ELASTICSEARCH_SSL_VERIFICATIONMODE: none
+    depends_on:
+      - elasticsearch
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1" ]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - XYZ
+
+  # ---------------- APP ----------------
+  app:
+    build: .
+    container_name: integration_app
+    restart: unless-stopped
+    ports:
+      - "8050:8050"
+    environment:
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8050
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - XYZ
+
+  # ---------------- NGROK -------------
+  # Tunnels FastAPI app (port 8050) for webhook callbacks from WooCommerce
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok
+    restart: unless-stopped
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHENTICATION}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - "http"
+      - "host.docker.internal:8050"
+    ports:
+      - "4040:4040"
+    networks:
+      - XYZ
