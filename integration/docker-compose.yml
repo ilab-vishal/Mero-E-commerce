@@ -1,0 +1,109 @@
+name: mero-ecommerce-inspirelab
+version: '3.8'
+
+networks:
+  XYZ:
+    driver: bridge
+
+volumes:
+  elastic_data:
+  elastic_certs:
+  elastic_config:
+
+
+services:
+
+  # ----------- ELASTICSEARCH -----------
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: mero_ecommerce_elasticsearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "true"
+      ELASTIC_PASSWORD: ${ELASTIC_PASS}
+      xpack.security.http.ssl.enabled: "false"
+      xpack.security.transport.ssl.enabled: "false"
+      action.auto_create_index: ".security,.security-*,.kibana*"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elastic_data:/usr/share/elasticsearch/data
+      - elastic_config:/usr/share/elasticsearch/config
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -u ${ELASTIC_USER}:${ELASTIC_PASS} -f http://localhost:9200/_cluster/health || exit 1" ]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - XYZ
+
+  # ---------------- KIBANA -------------
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.4
+    container_name: mero_ecommerce_kibana
+    restart: unless-stopped
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      SERVER_HOST: 0.0.0.0
+      ELASTICSEARCH_SERVICEACCOUNTTOKEN: ${KIBANA_ES_TOKEN}
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1" ]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - XYZ
+
+  # --------------- APP SERVICE -----------
+  app:
+    build: .
+    container_name: mero_ecommerce_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ES_INDEX_NAME: ${ES_INDEX_NAME}
+      ELASTIC_USER: ${ELASTIC_USER}
+      ELASTIC_PASS: ${ELASTIC_PASS}
+      SHOPIFY_WEBHOOK_SECRET: ${SHOPIFY_WEBHOOK_SECRET}
+      SHOPIFY_STORE_URL: ${SHOPIFY_STORE_URL}
+      SHOPIFY_API_VERSION: ${SHOPIFY_API_VERSION}
+      SHOPIFY_CLIENT_ID: ${SHOPIFY_CLIENT_ID}
+      SHOPIFY_ACCESS_TOKEN: ${SHOPIFY_ACCESS_TOKEN}
+      NGROK_URL: ${NGROK_URL}
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+      - ./scripts:/app/scripts
+    networks:
+      - XYZ
+
+  # --------------- NGROK SERVICE -----------
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: mero_ecommerce_ngrok
+    restart: unless-stopped
+    command:
+      - "http"
+      - "app:8000"
+    ports:
+      - "4040:4040"
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    depends_on:
+      - app
+    networks:
+      - XYZ
