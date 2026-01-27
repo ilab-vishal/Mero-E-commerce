@@ -1,5 +1,5 @@
 from utils.logging import get_logger
-from shopify.models.product import ProductDocument, Variant
+from base.models import ProductDocument, Variant
 
 logger = get_logger(__name__)
 

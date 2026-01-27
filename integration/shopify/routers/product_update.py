@@ -8,7 +8,7 @@ from shopify.utils.shopify_router_utils import (
     mark_event_processed,
 )
 from shopify.services.product_transformer import transform_shopify_product
-from shopify.services.elasticsearch_service import es_service
+from base.elasticsearch_service import es_service
 
 logger = get_logger(__name__)
 router = APIRouter()

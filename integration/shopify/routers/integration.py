@@ -5,13 +5,14 @@ from pydantic import BaseModel
 
 from shopify.config import SHOPIFY_CLIENT_ID
 from shopify.services.shopify_services import list_client_products, get_client_product_count
-from shopify.services.elasticsearch_service import es_service
+from base.elasticsearch_service import es_service
 from shopify.services.product_transformer import transform_shopify_product
+from base.models import ProductDocument
 from utils.logging import get_logger
 
 router = APIRouter(
-    prefix="/api/integration",
-    tags=["Integration"],
+    prefix="/api/shopify",
+    tags=["Shopify Integration"],
     responses={404: {"description": "Not found"}},
 )
 

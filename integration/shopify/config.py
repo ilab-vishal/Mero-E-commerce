@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """
 Shopify-specific configuration settings.
 
@@ -9,6 +10,14 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
+=======
+"""Shopify API configuration and URL builders."""
+import os
+
+SHOPIFY_API_VERSION = "2026-01"
+SHOPIFY_WEBHOOK_SECRET = os.getenv("SHOPIFY_WEBHOOK_SECRET")
+
+>>>>>>> feature/woocommerce-integration
 
 
 # Application Settings

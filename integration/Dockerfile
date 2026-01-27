@@ -1,25 +1,28 @@
-# Use an official Python runtime as a parent image
-FROM python:3.12-slim
+# Use official Python 3.12 slim image with uv
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
-LABEL name="Sales Agent Integration"
+LABEL name="E-commerce Integration Platform"
 
-# Set the working directory in the container
+# Set working directory
 WORKDIR /app
 
-# Install uv for faster dependency management
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# Enable bytecode compilation
+ENV UV_COMPILE_BYTECODE=1
 
-# Copy the dependencies files
+# Copy project configuration files
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies
-RUN uv sync --frozen
+# Install dependencies using uv
+RUN uv sync --frozen --no-install-project --no-dev
 
-# Copy the rest of the application code
+# Copy project files
 COPY . .
 
-# Expose the port the app runs on
+# Install the project itself
+RUN uv sync --frozen --no-dev
+
+# Expose the application port
 EXPOSE 8000
 
 # Command to run the application
-CMD ["uv", "run", "uvicorn", "shopify.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/.venv/bin/uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

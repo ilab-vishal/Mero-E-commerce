@@ -5,7 +5,7 @@ from shopify.utils.shopify_router_utils import (
     is_duplicate_event,
     mark_event_processed,
 )
-from shopify.services.elasticsearch_service import es_service
+from base.elasticsearch_service import es_service
 
 logger = get_logger(__name__)
 router = APIRouter()

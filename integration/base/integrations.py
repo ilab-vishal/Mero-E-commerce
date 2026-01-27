@@ -15,4 +15,5 @@ class Integrations(Enum):
     pattern to instantiate the correct engine.
     """
 
-    SHOPIFY: str = "shopify"
+    SHOPIFY : str = "shopify"
+    WOOCOMMERCE : str = "woocommerce"

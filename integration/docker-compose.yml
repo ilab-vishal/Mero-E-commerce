@@ -1,4 +1,4 @@
-name: mero-ecommerce-inspirelab
+name: mero-ecommerce-unified
 version: '3.8'
 
 networks:
@@ -12,7 +12,6 @@ volumes:
 
 
 services:
-
   # ----------- ELASTICSEARCH -----------
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
@@ -21,10 +20,10 @@ services:
     environment:
       discovery.type: single-node
       xpack.security.enabled: "true"
-      ELASTIC_PASSWORD: ${ELASTIC_PASS}
+      ELASTIC_PASSWORD: ${ELASTIC_PASS:-changeme}
       xpack.security.http.ssl.enabled: "false"
       xpack.security.transport.ssl.enabled: "false"
-      action.auto_create_index: ".security,.security-*,.kibana*"
+      action.auto_create_index: "true"
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"
     ports:
       - "9200:9200"
@@ -33,7 +32,7 @@ services:
       - elastic_data:/usr/share/elasticsearch/data
       - elastic_config:/usr/share/elasticsearch/config
     healthcheck:
-      test: [ "CMD-SHELL", "curl -u ${ELASTIC_USER}:${ELASTIC_PASS} -f http://localhost:9200/_cluster/health || exit 1" ]
+      test: [ "CMD-SHELL", "curl -s http://localhost:9200/ >/dev/null || exit 1" ]
       interval: 15s
       timeout: 10s
       retries: 3
@@ -52,6 +51,7 @@ services:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
       SERVER_HOST: 0.0.0.0
       ELASTICSEARCH_SERVICEACCOUNTTOKEN: ${KIBANA_ES_TOKEN}
+      ELASTICSEARCH_SSL_VERIFICATIONMODE: none
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -73,15 +73,28 @@ services:
       - "8000:8000"
     environment:
       ELASTICSEARCH_URL: http://elasticsearch:9200
-      ES_INDEX_NAME: ${ES_INDEX_NAME}
-      ELASTIC_USER: ${ELASTIC_USER}
-      ELASTIC_PASS: ${ELASTIC_PASS}
+      ES_INDEX_NAME: ${ES_INDEX_NAME:-products_unified}
+      ELASTIC_USER: ${ELASTIC_USER:-elastic}
+      ELASTIC_PASS: ${ELASTIC_PASS:-changeme}
+
+      # Shopify
       SHOPIFY_WEBHOOK_SECRET: ${SHOPIFY_WEBHOOK_SECRET}
       SHOPIFY_STORE_URL: ${SHOPIFY_STORE_URL}
-      SHOPIFY_API_VERSION: ${SHOPIFY_API_VERSION}
+      SHOPIFY_API_VERSION: ${SHOPIFY_API_VERSION:-2026-01}
       SHOPIFY_CLIENT_ID: ${SHOPIFY_CLIENT_ID}
+      SHOPIFY_CLIENT_SECRET: ${SHOPIFY_CLIENT_SECRET}
       SHOPIFY_ACCESS_TOKEN: ${SHOPIFY_ACCESS_TOKEN}
+
+      # WooCommerce
+      WOOCOMMERCE_STORE_URL: ${WOOCOMMERCE_STORE_URL}
+      WOOCOMMERCE_API_VERSION: ${WOOCOMMERCE_API_VERSION:-wc/v3}
+      WOOCOMMERCE_CONSUMER_KEY: ${WOOCOMMERCE_CONSUMER_KEY}
+      WOOCOMMERCE_CONSUMER_SECRET: ${WOOCOMMERCE_CONSUMER_SECRET}
+      WOOCOMMERCE_WEBHOOK_SECRET: ${WOOCOMMERCE_WEBHOOK_SECRET}
+
       NGROK_URL: ${NGROK_URL}
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -102,7 +115,7 @@ services:
     ports:
       - "4040:4040"
     environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+      NGROK_AUTHTOKEN: ${NGROK_AUTHENTICATION}
     depends_on:
       - app
     networks:
