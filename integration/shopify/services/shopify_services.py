@@ -171,6 +171,7 @@ def get_client_product_count(
         response = requests.get(
             url,
             headers=_get_headers(access_token),
+            params={"status": "active"},
             timeout=30
         )
         response.raise_for_status()
