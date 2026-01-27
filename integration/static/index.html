@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integration - Shopify Sales Agent</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .platform-card {
+            transition: all 0.3s ease;
+        }
+
+        .platform-card.active {
+            border-color: #10B981;
+            background-color: #ECFDF5;
+        }
+
+        .platform-card:hover:not(.disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid white;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen text-gray-800">
+
+    <div class="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <h1 class="text-4xl font-extrabold text-blue-900 tracking-tight sm:text-5xl mb-2">
+                Connect Your Store
+            </h1>
+            <p class="text-lg text-gray-600">
+                Integrate your e-commerce platform with our AI Sales Agent.
+            </p>
+        </div>
+
+        <!-- Step 1: Platform Selection -->
+        <div class="bg-white shadow-xl rounded-2xl overflow-hidden mb-8">
+            <div class="p-8">
+                <h2 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
+                    <span
+                        class="bg-blue-100 text-blue-800 text-xs font-semibold mr-3 px-2.5 py-0.5 rounded-full">1</span>
+                    Choose Platform
+                </h2>
+
+                <div class="grid grid-cols-1 gap-6">
+                    <!-- Shopify -->
+                    <div id="card-shopify"
+                        class="platform-card active border-2 border-green-500 rounded-xl p-6 cursor-pointer"
+                        onclick="selectPlatform('shopify')">
+                        <div class="flex items-center justify-between mb-4">
+                            <i class="fab fa-shopify text-4xl text-green-600"></i>
+                            <span
+                                class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded dark:bg-green-200 dark:text-green-900">Supported</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-gray-900">Shopify</h3>
+                        <p class="text-sm text-gray-500 mt-2">Connect your Shopify store using Access Token.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Credentials -->
+        <div id="credentials-section"
+            class="bg-white shadow-xl rounded-2xl overflow-hidden mb-8 transform transition-all duration-500">
+            <div class="p-8">
+                <h2 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
+                    <span
+                        class="bg-blue-100 text-blue-800 text-xs font-semibold mr-3 px-2.5 py-0.5 rounded-full">2</span>
+                    Configuration
+                </h2>
+
+                <form id="config-form" class="space-y-6">
+                    <div>
+                        <label for="client_id" class="block text-sm font-medium text-gray-700">Client ID
+                            (Optional)</label>
+                        <div class="mt-1">
+                            <input type="text" name="client_id" id="client_id"
+                                class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                placeholder="Default: from environment">
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">A unique identifier for this integration. Falls back to
+                            .env default if empty.</p>
+                    </div>
+
+                    <div>
+                        <label for="store_url" class="block text-sm font-medium text-gray-700">Store URL</label>
+                        <div class="mt-1 flex rounded-md shadow-sm">
+                            <span
+                                class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
+                                https://
+                            </span>
+                            <input type="text" name="store_url" id="store_url" required
+                                class="focus:ring-blue-500 focus:border-blue-500 flex-1 block w-full rounded-none rounded-r-md sm:text-sm border-gray-300 p-2 border"
+                                placeholder="your-store.myshopify.com">
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">The primary domain of your Shopify store.</p>
+                    </div>
+
+                    <div>
+                        <label for="access_token" class="block text-sm font-medium text-gray-700">Admin API Access
+                            Token</label>
+                        <div class="mt-1">
+                            <input type="password" name="access_token" id="access_token" required
+                                class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                placeholder="shpat_...">
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">Create a Custom App in Shopify Admin > Settings > Apps and
+                            Sales Channels.</p>
+                    </div>
+
+                    <div>
+                        <label for="webhook_secret" class="block text-sm font-medium text-gray-700">Webhook Signing
+                            Secret (Optional)</label>
+                        <div class="mt-1">
+                            <input type="password" name="webhook_secret" id="webhook_secret"
+                                class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                                placeholder="shpss_...">
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">Required for verifying automatic product updates.</p>
+                    </div>
+
+                    <!-- Connection Status -->
+                    <div id="connection-status" class="hidden rounded-md p-4 mb-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <i id="status-icon" class="fas fa-info-circle"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h3 id="status-title" class="text-sm font-medium"></h3>
+                                <div id="status-message" class="mt-2 text-sm"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center pt-4">
+                        <button type="button" onclick="testConnection()"
+                            class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            <i class="fas fa-plug mr-2"></i> Test Connection
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Step 3: Action -->
+        <div id="action-section"
+            class="hidden bg-white shadow-xl rounded-2xl overflow-hidden transform transition-all duration-500">
+            <div class="p-8">
+                <h2 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
+                    <span
+                        class="bg-blue-100 text-blue-800 text-xs font-semibold mr-3 px-2.5 py-0.5 rounded-full">3</span>
+                    Sync & Finalize
+                </h2>
+
+                <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-info-circle text-blue-400"></i>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-blue-700">
+                                Connection verified! You can now sync your products to our search engine.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <button onclick="triggerBulkSync()" id="btn-sync"
+                        class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                        <i class="fas fa-sync mr-2 mt-1"></i> Start Bulk Product Import
+                    </button>
+
+                    <div id="sync-status" class="hidden mt-4 text-center text-sm text-gray-600">
+                        <i class="fas fa-spinner fa-spin mr-2"></i> Syncing products in background...
+                    </div>
+                </div>
+
+                <div class="mt-8 pt-8 border-t border-gray-200">
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">
+                        <i class="fas fa-network-wired text-blue-500 mr-2"></i> Webhook Configuration Guide
+                    </h3>
+
+                    <!-- Explanation & Ngrok Link -->
+                    <div class="bg-blue-50 rounded-lg p-4 mb-6 border border-blue-100">
+                        <h4 class="font-semibold text-blue-900 text-sm mb-2">Why do I need a Public URL?</h4>
+                        <p class="text-sm text-blue-800 mb-3">
+                            <strong>Development (Your PC):</strong> Shopify is in the cloud, but this app is on your
+                            computer. Ngrok creates a bridge so Shopify can talk to you.
+                            <br><br>
+                            <strong>Production (Real Domain):</strong> If you deploy this app to a server (like
+                            AWS/Heroku) with a real domain (e.g., <code>https://api.myapp.com</code>), you <strong>DO
+                                NOT</strong> need Ngrok. Use your real domain instead.
+                        </p>
+                        <a href="https://dashboard.ngrok.com/get-started/setup" target="_blank"
+                            class="inline-flex items-center text-xs font-bold text-blue-600 hover:text-blue-800 underline">
+                            <i class="fas fa-external-link-alt mr-1"></i> Get/Setup Ngrok Free
+                        </a>
+                    </div>
+
+                    <!-- Step-by-Step Guide -->
+                    <div class="space-y-4">
+                        <div class="flex">
+                            <div
+                                class="flex-shrink-0 h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
+                                1</div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-gray-900">Start Ngrok</p>
+                                <p class="text-xs text-gray-500">Run the command <code
+                                        class="bg-gray-100 px-1 py-0.5 rounded">ngrok http 8000</code> in your terminal
+                                    and copy the "Forwarding" URL (e.g., <code
+                                        class="text-blue-600">https://xyz.ngrok-free.app</code>).</p>
+                            </div>
+                        </div>
+
+                        <div class="flex">
+                            <div
+                                class="flex-shrink-0 h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
+                                2</div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-gray-900">Open Shopify Webhooks</p>
+                                <p class="text-xs text-gray-500">
+                                    Go to <span class="font-semibold">Settings > Notifications > Webhooks</span> in your
+                                    Shopify Admin and click <span class="font-semibold">Create webhook</span>.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="flex">
+                            <div
+                                class="flex-shrink-0 h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
+                                3</div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-gray-900">Enter Details</p>
+                                <div
+                                    class="mt-2 bg-gray-50 p-3 rounded text-xs text-gray-600 space-y-2 border border-gray-200">
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <span class="font-semibold">Event:</span>
+                                        <span class="col-span-2">Product creation</span>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <span class="font-semibold">Format:</span>
+                                        <span class="col-span-2">JSON</span>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-2">
+                                        <span class="font-semibold">URL:</span>
+                                        <div
+                                            class="col-span-2 break-all font-mono select-all bg-white p-1 border rounded">
+                                            https://<span
+                                                class="text-blue-600">&lt;YOUR_NGROK&gt;</span>/webhooks/shopify/products/create
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-2">REPEAT this step for <strong>Product
+                                        update</strong> and <strong>Product deletion</strong> events.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Logic -->
+    <script src="/static/app.js"></script>
+</body>
+
+</html>
