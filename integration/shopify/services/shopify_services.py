@@ -1,132 +1,277 @@
-"""Shopify API service functions - no database dependencies."""
-
+from datetime import datetime, timedelta
+from utils.logging import get_logger
 import requests
+from typing import Optional, Dict, Any, List
+
 from shopify.config import (
-    get_access_token_url,
+    SHOPIFY_ACCESS_TOKEN,
+    SHOPIFY_STORE_URL,
+    get_products_url,
     get_product_url,
-    list_products_url,
-    get_connection_test_url
+    get_products_count_url,
+    get_webhooks_url,
 )
 
+logger = get_logger(__name__)
 
-def get_access_token(integration_data: dict):
+
+# Store mapping for multi-tenant support
+_store_urls: Dict[str, str] = {
+    "default": SHOPIFY_STORE_URL,
+}
+
+# Access tokens per client (for multi-tenant)
+_access_tokens: Dict[str, str] = {
+    "default": SHOPIFY_ACCESS_TOKEN,
+}
+
+
+def get_store_url(client_id: str) -> str:
     """
-    Get Shopify access token using integration credentials.
-    
+    Get the store URL for a given client.
+
     Args:
-        integration_data: Dict with keys: store_url, integration_key, integration_secret
+        client_id: The client identifier.
+
+    Returns:
+        The Shopify store URL string.
     """
-    store_url = integration_data.get("store_url")
-    integration_key = integration_data.get("integration_key")
-    integration_secret = integration_data.get("integration_secret")
-    
-    if not store_url:
-        raise ValueError("Missing store_url in integration_data")
-    if not integration_key or not integration_secret:
-        raise ValueError("Missing Shopify credentials in integration_data")
-
-    access_token_url = get_access_token_url(store_url)
-    json_body = {
-        "client_id": integration_key,
-        "client_secret": integration_secret,
-        "grant_type": "client_credentials" 
-    }
-
-    response = requests.post(access_token_url, json=json_body)
-    if response.status_code == 200:
-        access_information = response.json()
-        return {
-            "access_token": access_information.get("access_token"),
-            "expires_in": access_information.get("expires_in")
-        }
-    else:
-        return {
-            "access_token": None,
-            "expires_in": None
-        }
+    return _store_urls.get(client_id, SHOPIFY_STORE_URL)
 
 
-def list_client_products(integration_data: dict, access_token: str, limit: int = None):
+def _get_headers(access_token: str) -> Dict[str, str]:
     """
-    List Shopify products for a store.
-    
+    Build request headers with authentication.
+
     Args:
-        integration_data: Dict with key: store_url
-        access_token: Shopify access token
-        limit: Max number of products to return
+        access_token: Shopify API access token.
+
+    Returns:
+        A dictionary of headers for requests.
     """
-    store_url = integration_data.get("store_url")
-    if not store_url:
-        raise ValueError("Missing store_url in integration_data")
-    
-    products_url = list_products_url(store_url)
-    headers = {
+    return {
+        "X-Shopify-Access-Token": access_token,
         "Content-Type": "application/json",
-        "X-Shopify-Access-Token": access_token
     }
-    params = {"limit": limit} if limit else {}
-    
-    response = requests.get(products_url, headers=headers, params=params)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        return None
 
 
-def get_client_product(integration_data: dict, access_token: str, product_id: int):
+def get_access_token(client_id: str) -> Dict[str, Any]:
     """
-    Get a single Shopify product.
+    Get access credentials for a client.
+    
+    For now, returns the stored access token. In a full OAuth implementation,
+    this would handle token refresh and expiration.
     
     Args:
-        integration_data: Dict with key: store_url
-        access_token: Shopify access token
-        product_id: Shopify product ID
+        client_id: The client identifier
+        
+    Returns:
+        Dictionary with access_token and expires_at (None for non-expiring tokens)
     """
-    store_url = integration_data.get("store_url")
-    if not store_url:
-        raise ValueError("Missing store_url in integration_data")
+    token = _access_tokens.get(client_id, SHOPIFY_ACCESS_TOKEN)
     
-    product_url = get_product_url(store_url, product_id)
-    headers = {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": access_token
+    if not token:
+        logger.warning(f"No access token found for client: {client_id}")
+        return {"access_token": None, "expires_at": None}
+    
+    # Simulate an expiration time if needed (e.g., 1 hour from now)
+    # Shopify Admin API tokens don't usually expire, but this architecture supports it
+    expires_at = None 
+    
+    return {
+        "access_token": token,
+        "expires_at": expires_at, 
     }
-    
-    response = requests.get(product_url, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        return None
 
 
-def get_connection_test_results(integration_data: dict):
+def list_client_products(
+    store_url: str,
+    access_token: str,
+    limit: Optional[int] = None,
+    page_info: Optional[str] = None
+) -> tuple[List[Dict[str, Any]], Optional[str]]:
     """
-    Test Shopify connection by fetching product count.
+    Fetch a list of products from Shopify with pagination support.
     
     Args:
-        integration_data: Dict with keys: store_url, integration_key, integration_secret
+        store_url: The Shopify store URL (e.g., "my-shop.myshopify.com")
+        access_token: Shopify API access token
+        limit: Maximum number of products to fetch in this page (max 250)
+        page_info: Shopify cursor for the next page (for pagination)
+        
+    Returns:
+        Tuple of (list of product dictionaries, next_page_info string or None)
     """
+    url = get_products_url(store_url)
+    
+    params = {
+        "status": "active"
+    }
+    
+    # If page_info is provided, Shopify ignores other parameters except limit
+    if page_info:
+        params["page_info"] = page_info
+    
+    if limit:
+        params["limit"] = min(limit, 250)  # Shopify max is 250
+    elif not page_info:
+        params["limit"] = 50  # Default limit if not provided
+    
     try:
-        store_url = integration_data.get("store_url")
-        if not store_url:
-            raise ValueError("Missing store_url in integration_data")
+        response = requests.get(
+            url,
+            headers=_get_headers(access_token),
+            params=params,
+            timeout=30
+        )
+        response.raise_for_status()
         
-        # Get access token first
-        access_token_data = get_access_token(integration_data)
-        access_token = access_token_data.get("access_token")
+        data = response.json()
+        products = data.get("products", [])
         
-        if not access_token:
-            return {"count": None, "error": "Failed to get access token"}
+        # Parse Link header for next page
+        next_page_info = None
+        link_header = response.headers.get("Link")
+        if link_header:
+            # Format: <url>; rel="next", <url>; rel="previous"
+            links = link_header.split(",")
+            for link in links:
+                if 'rel="next"' in link:
+                    # Extract page_info from URL query params
+                    import re
+                    match = re.search(r"page_info=([^&>]+)", link)
+                    if match:
+                        next_page_info = match.group(1)
         
-        connection_test_url = get_connection_test_url(store_url)
-        headers = {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": access_token
+        logger.info(f"Fetched {len(products)} products (next_page: {bool(next_page_info)})")
+        return products, next_page_info
+        
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch products: {e}")
+        raise
+
+
+def get_client_product_count(
+    store_url: str,
+    access_token: str
+) -> int:
+    """
+    Fetch the total number of products from Shopify.
+    
+    Args:
+        store_url: The Shopify store URL
+        access_token: Shopify API access token
+        
+    Returns:
+        The total product count
+    """
+    url = get_products_count_url(store_url)
+    
+    try:
+        response = requests.get(
+            url,
+            headers=_get_headers(access_token),
+            timeout=30
+        )
+        response.raise_for_status()
+        
+        data = response.json()
+        count = data.get("count", 0)
+        
+        logger.info(f"Total products in store {store_url}: {count}")
+        return count
+        
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch product count: {e}")
+        raise
+
+
+def get_client_product(
+    store_url: str,
+    access_token: str,
+    product_id: int
+) -> Dict[str, Any]:
+    """
+    Fetch a single product from Shopify.
+    
+    Args:
+        store_url: The Shopify store URL
+        access_token: Shopify API access token
+        product_id: The product ID to fetch
+        
+    Returns:
+        Product dictionary
+    """
+    url = get_product_url(product_id, store_url)
+    
+    try:
+        response = requests.get(
+            url,
+            headers=_get_headers(access_token),
+            timeout=30
+        )
+        response.raise_for_status()
+        
+        data = response.json()
+        product = data.get("product", {})
+        
+        logger.info(f"Fetched product {product_id} for store {store_url}")
+        return product
+        
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch product {product_id}: {e}")
+        raise
+
+
+def register_client_webhook(
+    store_url: str,
+    access_token: str,
+    topic: str,
+    address: str
+) -> Dict[str, Any]:
+    """
+    Register a webhook topic with Shopify.
+
+    Args:
+        store_url: The Shopify store URL.
+        access_token: Shopify API access token.
+        topic: The webhook topic (e.g., "products/create").
+        address: The destination URL for the webhook.
+
+    Returns:
+        A dictionary containing the API response.
+    """
+    url = get_webhooks_url(store_url)
+    
+    json_body = {
+        "webhook": {
+            "topic": topic,
+            "address": address,
+            "format": "json"
         }
-        response = requests.get(connection_test_url, headers=headers)
-        if response.status_code == 200:
-            return response.json()
+    }
+    
+    try:
+        response = requests.post(
+            url,
+            headers=_get_headers(access_token),
+            json=json_body,
+            timeout=30
+        )
+        data = response.json()
+        
+        if response.status_code == 201:
+            logger.info(f"Registered webhook: {topic} at {address}")
+        elif response.status_code == 422 and "already been taken" in str(data):
+            logger.debug(f"Webhook {topic} already registered at {address}")
         else:
-            return {"count": None, "error": f"HTTP {response.status_code}"}
-    except Exception as e:
-        return {"count": None, "error": str(e)}
+            logger.warning(
+                f"Failed to register webhook: {topic}. "
+                f"Status: {response.status_code}, Response: {data}"
+            )
+            
+        return data
+        
+    except requests.RequestException as e:
+        logger.error(f"Failed to register webhook {topic}: {e}")
+        raise
