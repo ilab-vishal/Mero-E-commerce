@@ -18,19 +18,20 @@ _ENGINE_REGISTRY = {
 }
 
 
-def get_engine(integration_name: str, client_id: str):
+def get_engine(integration_name: str, integration_data: Dict[str, Any]):
     """
     Factory function to create platform-specific engine instances.
 
     Args:
         integration_name: The platform identifier (e.g., "shopify", "woocommerce")
-        client_id: Unique identifier for the client/store
+        integration_data: Dictionary containing integration settings and credentials
     Returns:
         An instance of the appropriate engine (e.g., ShopifyEngine)
     Raises:
         ValueError: If the integration name is not supported
     Example:
-        >>> engine = get_engine("shopify", "client_123")
+        >>> data = {"client_id": "c1", "store_url": "shop.myshopify.com", "access_token": "tk_123"}
+        >>> engine = get_engine("shopify", data)
         >>> products = engine.list_products(limit=10)
     """
     engine_cls = _ENGINE_REGISTRY.get(integration_name)
@@ -40,4 +41,5 @@ def get_engine(integration_name: str, client_id: str):
             f"Unknown integration: '{integration_name}'. "
             f"Supported integrations: {supported}"
         )
-    return engine_cls(client_id)
+    return engine_cls(integration_data)
+

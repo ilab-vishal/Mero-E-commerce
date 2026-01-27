@@ -55,37 +55,68 @@ def _get_headers(access_token: str) -> Dict[str, str]:
     }
 
 
-def get_access_token(client_id: str) -> Dict[str, Any]:
+def get_access_token(integration_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Get access credentials for a client.
     
-    For now, returns the stored access token. In a full OAuth implementation,
-    this would handle token refresh and expiration.
-    
     Args:
-        client_id: The client identifier
+        integration_data: Dictionary containing integration settings.
         
     Returns:
-        Dictionary with access_token and expires_at (None for non-expiring tokens)
+        Dictionary with access_token and expires_in (None for non-expiring tokens)
     """
-    token = _access_tokens.get(client_id, SHOPIFY_ACCESS_TOKEN)
+    client_id = integration_data.get("client_id", "default")
+    token = integration_data.get("access_token") or _access_tokens.get(client_id, SHOPIFY_ACCESS_TOKEN)
     
     if not token:
         logger.warning(f"No access token found for client: {client_id}")
-        return {"access_token": None, "expires_at": None}
+        return {"access_token": None, "expires_in": None}
     
-    # Simulate an expiration time if needed (e.g., 1 hour from now)
-    # Shopify Admin API tokens don't usually expire, but this architecture supports it
-    expires_at = None 
+    # Shopify Admin API tokens don't usually expire
+    expires_in = None 
     
     return {
         "access_token": token,
-        "expires_at": expires_at, 
+        "expires_in": expires_in, 
     }
 
 
+def get_connection_test_results(integration_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Test connection to Shopify and return results.
+    
+    Args:
+        integration_data: Dictionary containing integration settings.
+        
+    Returns:
+        Dictionary with status and message/count.
+    """
+    store_url = integration_data.get("store_url")
+    access_token = integration_data.get("access_token")
+    
+    if not store_url or not access_token:
+        return {
+            "status": "error",
+            "message": "Missing store_url or access_token in integration data"
+        }
+        
+    try:
+        count = get_client_product_count(store_url, access_token)
+        return {
+            "status": "success",
+            "count": count,
+            "message": f"Successfully connected. Found {count} products."
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+
 def list_client_products(
-    store_url: str,
+    integration_data: Dict[str, Any],
     access_token: str,
     limit: Optional[int] = None,
     page_info: Optional[str] = None
@@ -94,7 +125,7 @@ def list_client_products(
     Fetch a list of products from Shopify with pagination support.
     
     Args:
-        store_url: The Shopify store URL (e.g., "my-shop.myshopify.com")
+        integration_data: Dictionary containing integration settings (must have store_url)
         access_token: Shopify API access token
         limit: Maximum number of products to fetch in this page (max 250)
         page_info: Shopify cursor for the next page (for pagination)
@@ -102,6 +133,7 @@ def list_client_products(
     Returns:
         Tuple of (list of product dictionaries, next_page_info string or None)
     """
+    store_url = integration_data.get("store_url")
     url = get_products_url(store_url)
     
     params = {
@@ -188,7 +220,7 @@ def get_client_product_count(
 
 
 def get_client_product(
-    store_url: str,
+    integration_data: Dict[str, Any],
     access_token: str,
     product_id: int
 ) -> Dict[str, Any]:
@@ -196,13 +228,14 @@ def get_client_product(
     Fetch a single product from Shopify.
     
     Args:
-        store_url: The Shopify store URL
+        integration_data: Dictionary containing integration settings (must have store_url)
         access_token: Shopify API access token
         product_id: The product ID to fetch
         
     Returns:
         Product dictionary
     """
+    store_url = integration_data.get("store_url")
     url = get_product_url(product_id, store_url)
     
     try:

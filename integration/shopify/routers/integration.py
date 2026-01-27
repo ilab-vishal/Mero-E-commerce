@@ -104,7 +104,7 @@ async def background_bulk_sync(store_url: str, access_token: str, client_id: str
         while has_more:
             # Fetch batch from Shopify (max 250)
             products_batch_data, next_page_info = list_client_products(
-                store_url=store_url,
+                integration_data={"store_url": store_url},
                 access_token=access_token,
                 limit=250,
                 page_info=page_info
@@ -187,7 +187,7 @@ async def trigger_bulk_sync(
 
     # Basic validation first
     try:
-         list_client_products(creds.store_url, creds.access_token, limit=1)
+         list_client_products({"store_url": creds.store_url}, creds.access_token, limit=1)
     except Exception as e:
         raise HTTPException(
             status_code=400,
