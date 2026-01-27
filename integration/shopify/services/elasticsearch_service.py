@@ -20,37 +20,44 @@ logger = get_logger(__name__)
 PRODUCT_MAPPING = {
     "mappings": {
         "properties": {
-            "product_id": {"type": "long"},
+            "product_id": {"type": "keyword"},
             "name": {
                 "type": "text",
                 "fields": {
                     "keyword": {"type": "keyword", "ignore_above": 256}
                 }
             },
-            "vendor": {"type": "keyword"},
-            "category": {"type": "keyword"},
             "description": {"type": "text"},
-            "price_min": {"type": "double"},
-            "price_max": {"type": "double"},
-            "currency": {"type": "keyword"},
+            "vendor": {"type": "keyword"},
+            "brand": {"type": "keyword"},
+            "category": {"type": "keyword"},
+            "tags": {"type": "keyword"},
+            
+            # Search/Filter Helpers (Top Level)
+            "price_min": {"type": "float"},
+            "price_max": {"type": "float"},
             "total_inventory": {"type": "integer"},
+            "status": {"type": "keyword"},
+            "updated_at": {"type": "date"},
+            "created_at": {"type": "date"},
+            "image": {"type": "keyword", "index": False},
+
+            # Nested Variants
             "variants": {
                 "type": "nested",
                 "properties": {
-                    "size": {"type": "keyword"},
-                    "color": {"type": "keyword"},
-                    "price": {"type": "double"},
+                    "variant_id": {"type": "keyword"},
+                    "sku": {"type": "keyword"},
+                    "price": {"type": "float"},
+                    "compare_at_price": {"type": "float"},
                     "stock": {"type": "integer"},
-                    "attributes": {"type": "object", "dynamic": True}
+                    "image": {"type": "keyword", "index": False},
+                    "attributes": {
+                        "type": "object",
+                        "dynamic": True
+                    }
                 }
-            },
-            "image": {
-                "type": "keyword",
-                "index": False  # Just store URL
-            },
-            "tags": {"type": "keyword"},
-            "status": {"type": "keyword"},
-            "updated_at": {"type": "date"}
+            }
         }
     },
     "settings": {

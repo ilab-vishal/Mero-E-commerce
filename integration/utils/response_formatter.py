@@ -6,7 +6,7 @@ def format_single_product_data(data):
     print("=" * 100)
     
     print(f"\n📦 BASIC INFORMATION:")
-    print(f"   Title:        {product.get('title', 'N/A')}")
+    print(f"   Name:         {product.get('name', product.get('title', 'N/A'))}")
     print(f"   ID:           {product.get('id', 'N/A')}")
     print(f"   Handle:       {product.get('handle', 'N/A')}")
     print(f"   Vendor:       {product.get('vendor', 'N/A')}")
@@ -82,7 +82,7 @@ def format_product_data(data):
         print(f"{'─' * 100}")
         
         print(f"\n📦 BASIC INFORMATION:")
-        print(f"   Title:        {product.get('title', 'N/A')}")
+        print(f"   Name:         {product.get('name', product.get('title', 'N/A'))}")
         print(f"   ID:           {product.get('id', 'N/A')}")
         print(f"   Vendor:       {product.get('vendor', 'N/A')}")
         print(f"   Product Type: {product.get('product_type', 'N/A')}")

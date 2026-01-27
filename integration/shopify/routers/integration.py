@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from shopify.config import SHOPIFY_CLIENT_ID
 from shopify.services.shopify_services import list_client_products, get_client_product_count
 from shopify.services.elasticsearch_service import es_service
-from shopify.utils.shopify_adapter import ShopifyProductAdapter
+from shopify.services.product_transformer import transform_shopify_product
 from utils.logging import get_logger
 
 router = APIRouter(
@@ -123,7 +123,7 @@ async def background_bulk_sync(store_url: str, access_token: str, client_id: str
                         logger.debug(f"Skipping product {product_data.get('id')} during sync - Status is {status}")
                         continue
 
-                    product_doc = ShopifyProductAdapter.adapt(product_data)
+                    product_doc = transform_shopify_product(product_data)
                     batch_to_index.append(product_doc)
                     
                     # Log the transformed data for visibility
