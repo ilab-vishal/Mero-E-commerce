@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict
 
-from shopify.config import SHOPIFY_WEBHOOK_SECRET
+from config import SHOPIFY_WEBHOOK_SECRET
 
 logger = logging.getLogger(__name__)
 

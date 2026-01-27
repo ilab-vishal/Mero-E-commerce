@@ -3,7 +3,7 @@ import hashlib
 import hmac
 from datetime import datetime, timedelta
 
-from woocommerce.config import WOOCOMMERCE_WEBHOOK_SECRET
+from config import WOOCOMMERCE_WEBHOOK_SECRET
 
 
 processed_event_ids = {}

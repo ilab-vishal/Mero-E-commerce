@@ -3,13 +3,13 @@ from utils.logging import get_logger
 import requests
 from typing import Optional, Dict, Any, List
 
-from shopify.config import (
+from config import (
     SHOPIFY_ACCESS_TOKEN,
     SHOPIFY_STORE_URL,
-    get_products_url,
-    get_product_url,
-    get_products_count_url,
-    get_webhooks_url,
+    get_shopify_products_url as get_products_url,
+    get_shopify_product_url as get_product_url,
+    get_shopify_products_count_url as get_products_count_url,
+    get_shopify_webhooks_url as get_webhooks_url,
 )
 
 logger = get_logger(__name__)

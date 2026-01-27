@@ -5,7 +5,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Dict
 
-from shopify.config import LOG_LEVEL
+from config import LOG_LEVEL
 
 class CustomLogger(logging.Logger):
     """

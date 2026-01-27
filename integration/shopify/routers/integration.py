@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
-from shopify.config import SHOPIFY_CLIENT_ID
+from config import SHOPIFY_CLIENT_ID
 from shopify.services.shopify_services import list_client_products, get_client_product_count
 from base.elasticsearch_service import es_service
 from shopify.services.product_transformer import transform_shopify_product
@@ -38,7 +38,7 @@ class SyncResponse(BaseModel):
     status: str
 
 
-@router.post("/test-connection")
+@router.post("/connect")
 async def test_connection(creds: ConnectionCredentials):
     """
     Test the connection to the e-commerce platform using provided credentials.
@@ -162,7 +162,7 @@ async def background_bulk_sync(store_url: str, access_token: str, client_id: str
         logger.error(f"Bulk sync critical failure: {e}")
 
 
-@router.post("/bulk-sync", response_model=SyncResponse)
+@router.post("/sync", response_model=SyncResponse)
 async def trigger_bulk_sync(
     creds: ConnectionCredentials,
     background_tasks: BackgroundTasks

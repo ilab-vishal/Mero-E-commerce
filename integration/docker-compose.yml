@@ -120,3 +120,20 @@ services:
       - app
     networks:
       - XYZ
+
+  # --------------- DASHBOARD SERVICE -----------
+  dashboard:
+    build: .
+    container_name: mero_ecommerce_dashboard
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      API_URL: http://app:8000
+      SHOPIFY_STORE_URL: ${SHOPIFY_STORE_URL}
+      WOOCOMMERCE_STORE_URL: ${WOOCOMMERCE_STORE_URL}
+    command: [ "/app/.venv/bin/streamlit", "run", "dashboard.py", "--server.port=8501", "--server.address=0.0.0.0" ]
+    depends_on:
+      - app
+    networks:
+      - XYZ

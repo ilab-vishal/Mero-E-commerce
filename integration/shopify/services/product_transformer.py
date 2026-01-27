@@ -75,8 +75,8 @@ def transform_shopify_product(payload: dict) -> ProductDocument:
     max_price = prices[-1] if prices else 0.0
 
     doc = ProductDocument(
-        product_id=payload["id"],
-        name=payload.get("title"),
+        product_id=str(payload["id"]),
+        name=str(payload.get("title", "")),
         description=payload.get("body_html"),
         vendor=payload.get("vendor"),
         brand=payload.get("vendor"),

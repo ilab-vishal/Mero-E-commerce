@@ -7,18 +7,22 @@ import os
 # Load environment variables
 load_dotenv()
 
+# Internal imports
 from shopify.routers import integration as shopify_router
 from shopify.webhook import router as shopify_webhook_router
 from woocommerce.routers import connection as woo_connection_router
 from woocommerce.routers import bulk_sync as woo_sync_router
-from woocommerce.webhook import router as woo_webhook_router
+from woocommerce.webhook.woocommerce import router as woo_webhook_router
 
 from base.elasticsearch_service import es_service
 from utils.logging import setup_logging
+from config import APP_NAME, APP_HOST, APP_PORT, DEBUG
 
 # Initialize logging
 setup_logging()
 logger = logging.getLogger(__name__)
+
+from fastapi.middleware.cors import CORSMiddleware
 
 # Create FastAPI application
 app = FastAPI(
@@ -27,19 +31,23 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# Add CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Register Shopify routers
 app.include_router(shopify_webhook_router, tags=["Shopify Webhooks"])
-app.include_router(shopify_router.router, prefix="/api/shopify", tags=["Shopify"])
+app.include_router(shopify_router.router, tags=["Shopify"])
 
 # Register WooCommerce routers
 app.include_router(woo_connection_router.router)
 app.include_router(woo_sync_router.router)
-app.include_router(woo_webhook_router.router)
-
-# Mount static files (Frontend)
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
-
+app.include_router(woo_webhook_router)
 
 @app.on_event("startup")
 async def startup_event():
@@ -63,13 +71,7 @@ def health_check():
 @app.get("/", tags=["Root"])
 def root():
     return {
-        "name": "Mero E-commerce Integration Platform",
-        "version": "1.0.0",
-        "platforms": ["shopify", "woocommerce"],
-        "endpoints": {
-            "shopify": "/api/shopify",
-            "woocommerce": "/api/woocommerce",
-            "health": "/health",
-            "docs": "/docs",
-        }
+        "message": "Mero E-commerce Integration API",
+        "status": "online",
+        "docs": "/docs"
     }

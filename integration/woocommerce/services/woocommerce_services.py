@@ -1,11 +1,11 @@
 import requests
 from requests.auth import HTTPBasicAuth
-from woocommerce.config import (
+from config import (
     WOOCOMMERCE_CONSUMER_KEY,
     WOOCOMMERCE_CONSUMER_SECRET,
-    get_product_url,
-    list_products_url,
-    get_base_api_url,
+    get_woo_product_url as get_product_url,
+    get_woo_products_url as list_products_url,
+    get_woo_base_api_url as get_base_api_url,
 )
 
 

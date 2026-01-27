@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from requests.auth import HTTPBasicAuth
 import requests
 
-from woocommerce.config import (
+from config import (
     WOOCOMMERCE_CONSUMER_KEY,
     WOOCOMMERCE_CONSUMER_SECRET,
     WOOCOMMERCE_STORE_URL,
@@ -177,7 +177,7 @@ def _process_products_for_indexing(products: list, store_url: str = None, consum
     return docs
 
 
-@router.post("/bulk-sync", response_model=BulkSyncResponse)
+@router.post("/sync", response_model=BulkSyncResponse)
 async def bulk_sync_products(request: BulkSyncRequest):
     """
     Bulk fetch all products from WooCommerce and index them into Elasticsearch.
@@ -257,7 +257,7 @@ async def bulk_sync_products(request: BulkSyncRequest):
     )
 
 
-@router.get("/bulk-sync/status")
+@router.get("/sync/status")
 async def get_sync_status():
     """
     Check the status of Elasticsearch and WooCommerce connectivity.

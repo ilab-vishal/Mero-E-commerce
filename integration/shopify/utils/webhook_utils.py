@@ -5,7 +5,7 @@ Utilities for automatic Shopify webhook registration.
 from utils.logging import get_logger
 from typing import List
 
-from shopify.config import SHOPIFY_STORE_URL, SHOPIFY_ACCESS_TOKEN, NGROK_URL
+from config import SHOPIFY_STORE_URL, SHOPIFY_ACCESS_TOKEN, NGROK_URL
 from shopify.services.shopify_services import register_client_webhook
 
 logger = get_logger(__name__)
