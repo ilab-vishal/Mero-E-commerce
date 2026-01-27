@@ -1,6 +1,9 @@
 """Shopify API configuration and URL builders."""
+import os
 
 SHOPIFY_API_VERSION = "2026-01"
+SHOPIFY_WEBHOOK_SECRET = os.getenv("SHOPIFY_WEBHOOK_SECRET")
+
 
 
 def get_access_token_url(store_url: str):
