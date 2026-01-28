@@ -5,6 +5,7 @@
 
 import time
 import logging
+import traceback
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -67,8 +68,7 @@ def _fetch_all_products(store_url: str, consumer_key: str, consumer_secret: str,
     
     while True:
         url = _build_products_url(store_url, page, per_page)
-        # Use query parameter authentication instead of HTTP Basic Auth
-        # This is more reliable when accessing through ngrok/proxies
+        # Use query parameter authentication (more reliable for ngrok)
         url_with_auth = f"{url}&consumer_key={consumer_key}&consumer_secret={consumer_secret}"
         
         logger.info(f"Fetching products page {page}: {url}")
@@ -77,21 +77,23 @@ def _fetch_all_products(store_url: str, consumer_key: str, consumer_secret: str,
             response = requests.get(url_with_auth, timeout=30)
             
             if response.status_code == 401:
-                return [], f"Authentication failed (401): {response.text}. Check your consumer_key and consumer_secret."
+                return [], f"Authentication failed (401). Check your consumer_key and consumer_secret."
             
             if response.status_code != 200:
-                return [], f"WooCommerce API error: {response.status_code} - {response.text}"
+                return [], f"WooCommerce API error: {response.status_code}"
             
-            products = response.json()
+            try:
+                products = response.json()
+            except Exception as json_err:
+                return [], f"Failed to parse WooCommerce response as JSON: {str(json_err)}"
             
-            if not products:
-                # No more products, exit pagination loop
+            if not products or not isinstance(products, list):
                 break
             
             all_products.extend(products)
             logger.info(f"Page {page}: fetched {len(products)} products (total: {len(all_products)})")
             
-            # Check if we've reached the last page
+            # Check pagination
             total_pages = int(response.headers.get('X-WP-TotalPages', 1))
             if page >= total_pages:
                 break
@@ -99,18 +101,9 @@ def _fetch_all_products(store_url: str, consumer_key: str, consumer_secret: str,
             page += 1
             
         except requests.exceptions.Timeout:
-            return [], f"Request timeout while fetching page {page}. The store URL may be unreachable."
+            return [], f"Request timeout while fetching page {page}."
         except requests.exceptions.ConnectionError as e:
-            error_msg = str(e)
-            if "localhost" in store_url.lower() or "127.0.0.1" in store_url:
-                return [], (
-                    f"Connection error to localhost. If WooCommerce is running locally, "
-                    f"you need to use ngrok to create a tunnel. "
-                    f"Run: ngrok http 80 (or your WooCommerce port), "
-                    f"then use the ngrok URL in store_url parameter. "
-                    f"Original error: {error_msg}"
-                )
-            return [], f"Connection error: {error_msg}. Make sure the store URL is accessible."
+            return [], f"Connection error: {str(e)}. Make sure the store URL is accessible from the container."
         except Exception as e:
             return [], f"Error fetching products: {str(e)}"
     
@@ -181,80 +174,82 @@ def _process_products_for_indexing(products: list, store_url: str = None, consum
 async def bulk_sync_products(request: BulkSyncRequest):
     """
     Bulk fetch all products from WooCommerce and index them into Elasticsearch.
-    
-    This endpoint is useful for initial data population or re-syncing all products.
-    
-    - If credentials are not provided, uses values from .env file
-    - Handles pagination automatically (fetches all pages)
-    - Returns detailed sync report with success/failure counts
     """
-    start_time = time.time()
-    
-    # Use provided credentials or fall back to environment variables
-    store_url = request.store_url or WOOCOMMERCE_STORE_URL
-    consumer_key = request.consumer_key or WOOCOMMERCE_CONSUMER_KEY
-    consumer_secret = request.consumer_secret or WOOCOMMERCE_CONSUMER_SECRET
-    per_page = min(request.per_page, 100)  # WooCommerce max is 100
-    
-    # Validate credentials
-    if not store_url:
-        raise HTTPException(status_code=400, detail="Store URL is required")
-    if not consumer_key or not consumer_secret:
-        raise HTTPException(status_code=400, detail="Consumer key and secret are required")
-    
-    logger.info(f"Starting bulk sync from: {store_url}")
-    
-    # Check Elasticsearch connection
-    if not es_service.check_connection():
-        raise HTTPException(
-            status_code=503, 
-            detail="Elasticsearch is not available. Please ensure it's running."
+    try:
+        start_time = time.time()
+        
+        # Use provided credentials or fall back to environment variables
+        store_url = request.store_url or WOOCOMMERCE_STORE_URL
+        consumer_key = request.consumer_key or WOOCOMMERCE_CONSUMER_KEY
+        consumer_secret = request.consumer_secret or WOOCOMMERCE_CONSUMER_SECRET
+        per_page = min(request.per_page, 100)  # WooCommerce max is 100
+        
+        # Validate credentials
+        if not store_url:
+            raise HTTPException(status_code=400, detail="Store URL is required")
+        if not consumer_key or not consumer_secret:
+            raise HTTPException(status_code=400, detail="Consumer key and secret are required")
+        
+        logger.info(f"Starting bulk sync from: {store_url}")
+        
+        # Check Elasticsearch connection
+        if not es_service.check_connection():
+            raise HTTPException(
+                status_code=503, 
+                detail="Elasticsearch is not available. Please ensure it's running."
+            )
+        
+        # Fetch all products from WooCommerce
+        products, error = _fetch_all_products(store_url, consumer_key, consumer_secret, per_page)
+        
+        if error:
+            raise HTTPException(status_code=400, detail=error)
+        
+        if not products:
+            return BulkSyncResponse(
+                status="completed",
+                total_fetched=0,
+                indexed_count=0,
+                failed_count=0,
+                failures=[],
+                duration_seconds=round(time.time() - start_time, 2)
+            )
+        
+        # Process products (fetch variations if needed)
+        processed_products = _process_products_for_indexing(
+            products, 
+            store_url=store_url,
+            consumer_key=consumer_key,
+            consumer_secret=consumer_secret
         )
-    
-    # Fetch all products from WooCommerce
-    products, error = _fetch_all_products(store_url, consumer_key, consumer_secret, per_page)
-    
-    if error:
-        raise HTTPException(status_code=400, detail=error)
-    
-    if not products:
+        
+        logger.info(f"Processed {len(processed_products)} products for indexing")
+        
+        # Bulk index to Elasticsearch
+        result = es_service.bulk_index_products(processed_products)
+        
+        duration = round(time.time() - start_time, 2)
+        
+        logger.info(
+            f"Bulk sync completed: {result.get('success_count', 0)} indexed, "
+            f"{result.get('failed_count', 0)} failed, took {duration}s"
+        )
+        
         return BulkSyncResponse(
             status="completed",
-            total_fetched=0,
-            indexed_count=0,
-            failed_count=0,
-            failures=[],
-            duration_seconds=round(time.time() - start_time, 2)
+            total_fetched=len(products),
+            indexed_count=result.get("success_count", 0),
+            failed_count=result.get("failed_count", 0),
+            failures=result.get("failures", [])[:50],  # Limit failures to first 50
+            duration_seconds=duration
         )
-    
-    # Process products (fetch variations if needed)
-    processed_products = _process_products_for_indexing(
-        products, 
-        store_url=store_url,
-        consumer_key=consumer_key,
-        consumer_secret=consumer_secret
-    )
-    
-    logger.info(f"Processed {len(processed_products)} products for indexing")
-    
-    # Bulk index to Elasticsearch
-    result = es_service.bulk_index_products(processed_products)
-    
-    duration = round(time.time() - start_time, 2)
-    
-    logger.info(
-        f"Bulk sync completed: {result['success_count']} indexed, "
-        f"{result['failed_count']} failed, took {duration}s"
-    )
-    
-    return BulkSyncResponse(
-        status="completed",
-        total_fetched=len(products),
-        indexed_count=result["success_count"],
-        failed_count=result["failed_count"],
-        failures=result["failures"][:50],  # Limit failures to first 50
-        duration_seconds=duration
-    )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Critical error in WooCommerce bulk sync: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 
 @router.get("/sync/status")

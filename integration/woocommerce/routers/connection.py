@@ -28,9 +28,10 @@ async def connect_woocommerce(request: ConnectionRequest):
             consumer_secret=request.consumer_secret
         )
         return {
+            "status": "success",
             "message": "Successfully connected to WooCommerce!", 
-            "details": result["data"],
+            "details": f"Success! We found {total_count} products in your store. You are ready to start synchronization.",
             "total_store_products": total_count
         }
     else:
-        raise HTTPException(status_code=400, detail=result["message"])
+        raise HTTPException(status_code=400, detail=result.get("message", "Connection failed"))
