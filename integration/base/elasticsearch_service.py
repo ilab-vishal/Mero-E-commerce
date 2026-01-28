@@ -19,24 +19,36 @@ PRODUCT_MAPPING = {
             "product_id": {"type": "keyword"},
             "name": {
                 "type": "text",
+                "analyzer": "standard",
                 "fields": {
-                    "keyword": {"type": "keyword", "ignore_above": 256}
+                    "keyword": {"type": "keyword", "ignore_above": 256},
+                    "autocomplete": {
+                        "type": "text",
+                        "analyzer": "autocomplete"
+                    }
                 }
             },
             "description": {"type": "text"},
+            "short_description": {"type": "text"},
             "vendor": {"type": "keyword"},
             "brand": {"type": "keyword"},
-            "category": {"type": "keyword"},
+            "categories": {"type": "keyword"},
             "tags": {"type": "keyword"},
+            "slug": {"type": "keyword"},
             
             # Search/Filter Helpers
             "price_min": {"type": "float"},
             "price_max": {"type": "float"},
+            "currency": {"type": "keyword"},
             "total_inventory": {"type": "integer"},
             "status": {"type": "keyword"},
+            "on_sale": {"type": "boolean"},
             "updated_at": {"type": "date"},
             "created_at": {"type": "date"},
-            "image": {"type": "keyword", "index": False},
+            
+            # Media
+            "primary_image": {"type": "keyword", "index": False},
+            "images": {"type": "keyword", "index": False},
 
             # Nested Variants
             "variants": {
@@ -44,10 +56,13 @@ PRODUCT_MAPPING = {
                 "properties": {
                     "variant_id": {"type": "keyword"},
                     "sku": {"type": "keyword"},
+                    "barcode": {"type": "keyword"},
                     "price": {"type": "float"},
                     "compare_at_price": {"type": "float"},
                     "stock": {"type": "integer"},
                     "image": {"type": "keyword", "index": False},
+                    "weight": {"type": "float"},
+                    "weight_unit": {"type": "keyword"},
                     "attributes": {
                         "type": "object",
                         "dynamic": True
@@ -58,7 +73,23 @@ PRODUCT_MAPPING = {
     },
     "settings": {
         "number_of_shards": 1,
-        "number_of_replicas": 0
+        "number_of_replicas": 0,
+        "analysis": {
+            "analyzer": {
+                "autocomplete": {
+                    "type": "custom",
+                    "tokenizer": "autocomplete_tokenizer",
+                    "filter": ["lowercase"]
+                }
+            },
+            "tokenizer": {
+                "autocomplete_tokenizer": {
+                    "type": "edge_ngram",
+                    "min_gram": 2,
+                    "max_gram": 10
+                }
+            }
+        }
     }
 }
 

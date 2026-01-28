@@ -39,10 +39,10 @@ def handle_parent_product(product: dict) -> dict | None:
         "status": product.get("status"),
         "description": product.get("description") or product.get("short_description"),
         "attributes": attributes,
-        "categories": [cat.get("name") for cat in product.get("categories", []) if cat.get("name")],
-        "tags": [tag.get("name") for tag in product.get("tags", []) if tag.get("name")],
+        "categories": product.get("categories", []),
+        "tags": product.get("tags", []),
         "brands": product.get("brands", []),
-        "images": [img.get("src") for img in product.get("images", []) if img.get("src")],
+        "images": product.get("images", []),
         "date_created": product.get("date_created"),
         "date_modified": product.get("date_modified"),
         "variants": existing_variants
@@ -85,11 +85,14 @@ def handle_variant_product(variant: dict) -> dict | None:
     variant_data = {
         "id": variant_id,
         "sku": variant.get("sku"),
+        "barcode": None,  # WooCommerce doesn't have barcode in standard API, but keep placeholder
         "attributes": variant_attributes,
         "price": variant.get("price"),
         "regular_price": variant.get("regular_price"),
         "sale_price": variant.get("sale_price"),
         "on_sale": variant.get("on_sale"),
+        "weight": variant.get("weight"),
+        "image": variant.get("image", {}).get("src") if isinstance(variant.get("image"), dict) else None,
         "stock_status": variant.get("stock_status"),
         "stock_quantity": variant.get("stock_quantity"),
         "purchasable": variant.get("purchasable"),

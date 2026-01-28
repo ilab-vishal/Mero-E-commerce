@@ -4,20 +4,25 @@ from pydantic import BaseModel
 class Variant(BaseModel):
     variant_id: str
     sku: Optional[str] = None
+    barcode: Optional[str] = None  # GTIN/UPC for product identification
     price: float
     compare_at_price: Optional[float] = None
     stock: int
     image: Optional[str] = None
+    weight: Optional[float] = None  # Weight in grams
+    weight_unit: str = "g"
     attributes: Dict[str, Any] = {}
 
 class ProductDocument(BaseModel):
     product_id: str
     name: str
     description: Optional[str] = None
+    short_description: Optional[str] = None  # WooCommerce has this, useful for AI summaries
     vendor: Optional[str] = None
     brand: Optional[str] = None
-    category: Optional[str] = None
+    categories: List[str] = []  # Changed to list for WooCommerce multi-category support
     tags: List[str] = []
+    slug: Optional[str] = None  # URL-friendly identifier
     
     # Calculated fields for search/filtering
     price_min: float
@@ -25,11 +30,15 @@ class ProductDocument(BaseModel):
     currency: str = "NPR"
     total_inventory: int
     status: str
+    on_sale: bool = False  # Quick filter for sale items
     
     # Nested variants
     variants: List[Variant]
     
-    # Media & Metadata
-    image: Optional[str] = None
+    # Media
+    primary_image: Optional[str] = None
+    images: List[str] = []  # All product images
+    
+    # Metadata
     updated_at: Optional[str] = None
     created_at: Optional[str] = None

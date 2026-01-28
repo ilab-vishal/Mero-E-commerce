@@ -52,23 +52,40 @@ def transform_shopify_product(payload: dict) -> ProductDocument:
             name = option_names.get(opt_key, f"Option {i}")
             attributes[name] = val
         
+        # Weight handling - Shopify provides grams directly or weight with unit
+        weight = v.get("grams") or v.get("weight")
+        weight_unit = v.get("weight_unit", "g")
+        
         variants_list.append(
             Variant(
                 variant_id=str(v.get("id")),
                 sku=v.get("sku"),
+                barcode=v.get("barcode"),  # GTIN/UPC
                 price=price,
                 compare_at_price=compare_at_price,
                 stock=qty,
                 image=variant_image,
+                weight=float(weight) if weight else None,
+                weight_unit=weight_unit,
                 attributes=attributes
             )
         )
 
-    image = None
+    # Extract primary image
+    primary_image = None
     if payload.get("image"):
-        image = payload["image"].get("src")
+        primary_image = payload["image"].get("src")
     elif payload.get("images") and len(payload["images"]) > 0:
-        image = payload["images"][0].get("src")
+        primary_image = payload["images"][0].get("src")
+    
+    # Extract all images
+    all_images = [img.get("src") for img in payload.get("images", []) if img.get("src")]
+    
+    # Detect if on sale (any variant has compare_at_price > price)
+    on_sale = any(
+        v.compare_at_price and v.compare_at_price > v.price 
+        for v in variants_list
+    )
         
     prices = sorted([p for p in prices if p is not None])
     min_price = prices[0] if prices else 0.0
@@ -78,22 +95,28 @@ def transform_shopify_product(payload: dict) -> ProductDocument:
         product_id=str(payload["id"]),
         name=str(payload.get("title", "")),
         description=payload.get("body_html"),
+        short_description=None,  # Shopify doesn't have short description
         vendor=payload.get("vendor"),
         brand=payload.get("vendor"),
-        category=payload.get("product_type"),
-        tags=[t.strip() for t in payload.get("tags", "").split(",") if t],
+        categories=[payload.get("product_type")] if payload.get("product_type") else [],
+        tags=[t.strip() for t in payload.get("tags", "").split(",") if t.strip()],
+        slug=payload.get("handle"),
         
         # Calculated
         price_min=min_price,
         price_max=max_price,
         total_inventory=total_inventory,
         status=payload.get("status", "active"),
+        on_sale=on_sale,
         
         # Nested Struct
         variants=variants_list,
         
+        # Media
+        primary_image=primary_image,
+        images=all_images,
+        
         # Meta
-        image=image,
         updated_at=payload.get("updated_at"),
         created_at=payload.get("created_at")
     )

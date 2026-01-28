@@ -38,7 +38,13 @@ def format_merged_product(product):
     # Categories
     categories = product.get('categories', [])
     if categories:
-        print(f"\n📁 CATEGORIES: {', '.join(categories)}")
+        cat_names = []
+        for cat in categories:
+            if isinstance(cat, dict):
+                cat_names.append(cat.get("name", "N/A"))
+            else:
+                cat_names.append(str(cat))
+        print(f"\n📁 CATEGORIES: {', '.join(cat_names)}")
 
     # Variants
     variants = product.get('variants', [])
