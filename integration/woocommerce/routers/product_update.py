@@ -13,6 +13,7 @@ from woocommerce.loggers import get_logger
 from base.elasticsearch_service import es_service
 from woocommerce.services.woocommerce_services import (
     get_product as fetch_remote_product,
+    get_product_variations,
 )
 from woocommerce.utils.product_transformer import transform_product_for_es
 from woocommerce.utils.webhook_guard import is_woocommerce_ping
@@ -63,16 +64,18 @@ async def product_updated(
         handle_variant_product(product)
         parent_id = product.get("parent_id")
 
-        # Fetch all variants for the parent from WooCommerce and update store
+        # Fetch parent and all variants from WooCommerce and update store
         try:
             parent_product = fetch_remote_product(parent_id)
-            if parent_product and "variations" in parent_product:
-                for variant_id in parent_product["variations"]:
-                    variant_data = fetch_remote_product(variant_id)
-                    if variant_data:
-                        handle_variant_product(variant_data)
+            if parent_product:
+                # Ensure parent details are cached/updated from full API data
+                handle_parent_product(parent_product)
+                
+                variations = get_product_variations(parent_id)
+                for variant_data in variations:
+                    handle_variant_product(variant_data)
         except Exception as e:
-            logger.error(f"Error fetching all variants: {e}", extra={"parent_id": parent_id})
+            logger.error(f"Error fetching parent/variants for variation update: {e}", extra={"parent_id": parent_id})
 
         # Always re-index the parent
         merged = get_product(parent_id)
@@ -83,31 +86,37 @@ async def product_updated(
             )
     else:
         logger.info(f"Processing parent product update: ID={product_id}")
-        # Update parent product in store
-        merged = handle_parent_product(product)
+        # Fetch full parent product from API to ensure we have all fields (webhook payload might be partial)
+        full_product = fetch_remote_product(product_id)
+        if full_product:
+            merged = handle_parent_product(full_product)
+        else:
+            # Fallback to webhook payload if API fetch fails
+            logger.warning(f"Failed to fetch full product from API for ID={product_id}, falling back to webhook data")
+            merged = handle_parent_product(product)
         
         # If variable product, fetch and update all variations
-        if product.get("type") == "variable" and "variations" in product:
+        if product.get("type") == "variable":
             logger.info(f"Fetching variations for updated parent product: ID={product_id}")
             try:
-                for variant_id in product["variations"]:
-                    variant_data = fetch_remote_product(variant_id)
-                    if variant_data:
-                        handle_variant_product(variant_data)
+                variations = get_product_variations(product_id)
+                for variant_data in variations:
+                    handle_variant_product(variant_data)
             except Exception as e:
                 logger.error(f"Error fetching variations for parent update: {e}", extra={"product_id": product_id})
 
         if merged:
             logger.info("Parent product processed", extra={"product_id": product_id})
 
-    if not merged:
-        logger.error(
-            "No merged product found for update",
-            extra={"product_id": product_id}
-        )
-        return JSONResponse(
-            status_code=500, content={"status": "error", "reason": "No merged product"}
-        )
+    # Status handling: only index 'publish' products
+    if merged and merged.get("status") != "publish":
+        logger.info(f"Product {merged.get('id')} status is '{merged.get('status')}' - removing from index", extra={"product_id": merged.get('id')})
+        try:
+            es_service.delete_product(str(merged.get('id')))
+            return {"status": "removed", "message": f"Product removed because status is {merged.get('status')}"}
+        except Exception as e:
+            logger.error(f"Error removing non-published product from ES: {e}", extra={"product_id": merged.get('id')})
+            return JSONResponse(status_code=500, content={"status": "error", "reason": f"ES deletion failed: {str(e)}"})
 
     # Index in ES
     try:

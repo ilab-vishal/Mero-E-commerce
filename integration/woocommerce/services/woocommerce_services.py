@@ -15,7 +15,7 @@ def _add_auth_params(url: str) -> str:
     return f"{url}{separator}consumer_key={WOOCOMMERCE_CONSUMER_KEY}&consumer_secret={WOOCOMMERCE_CONSUMER_SECRET}"
 
 
-def list_products(limit: int = None):
+def list_products(limit: int = None, status: str = "publish"):
     """Fetch list of products from WooCommerce"""
     products_url = list_products_url()
     if not WOOCOMMERCE_CONSUMER_KEY or not WOOCOMMERCE_CONSUMER_SECRET:
@@ -24,6 +24,8 @@ def list_products(limit: int = None):
     params = {}
     if limit:
         params["per_page"] = limit
+    if status:
+        params["status"] = status
     
     url = _add_auth_params(products_url)
     response = requests.get(url, params=params)
@@ -89,6 +91,24 @@ def get_product(product_id: int):
         print(f"Error fetching product: {response.status_code} - {response.text}")
         return None
 
+
+def get_product_variations(product_id: int):
+    """Fetch all variations for a product from WooCommerce"""
+    product_url = get_product_url(product_id)
+    variations_url = f"{product_url}/variations"
+    if not WOOCOMMERCE_CONSUMER_KEY or not WOOCOMMERCE_CONSUMER_SECRET:
+        raise ValueError("Missing WooCommerce credentials")
+    
+    url = _add_auth_params(variations_url)
+    # Fetch all variations (max 100 per page, assuming most products have < 100 variants)
+    response = requests.get(url, params={"per_page": 100})
+    
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Error fetching variations for product {product_id}: {response.status_code} - {response.text}")
+        return []
+
 def get_store_product_count(store_url: str, consumer_key: str, consumer_secret: str) -> int:
     """
     Fetch the total number of products from the WooCommerce store.
@@ -100,7 +120,8 @@ def get_store_product_count(store_url: str, consumer_key: str, consumer_secret: 
     params = {
         "consumer_key": consumer_key,
         "consumer_secret": consumer_secret,
-        "per_page": 1
+        "per_page": 1,
+        "status": "publish"
     }
     
     try:

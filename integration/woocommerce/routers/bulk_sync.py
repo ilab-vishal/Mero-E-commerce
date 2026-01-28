@@ -55,7 +55,7 @@ def _build_products_url(store_url: str, page: int, per_page: int) -> str:
     base_url = store_url.rstrip('/')
     api_version = WOOCOMMERCE_API_VERSION or "wc/v3"
     
-    return f"{base_url}/wp-json/{api_version}/products?page={page}&per_page={per_page}"
+    return f"{base_url}/wp-json/{api_version}/products?page={page}&per_page={per_page}&status=publish"
 
 
 def _fetch_all_products(store_url: str, consumer_key: str, consumer_secret: str, per_page: int) -> tuple:

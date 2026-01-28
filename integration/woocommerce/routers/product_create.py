@@ -13,6 +13,7 @@ from woocommerce.loggers import get_logger
 from base.elasticsearch_service import es_service
 from woocommerce.services.woocommerce_services import (
     get_product as fetch_remote_product,
+    get_product_variations,
 )
 from woocommerce.utils.product_transformer import transform_product_for_es
 from woocommerce.utils.webhook_guard import is_woocommerce_ping
@@ -71,13 +72,17 @@ async def product_created(
         merged = get_product(parent_id)
         if merged:
             try:
-                logger.info(f"Indexing parent product after variant update: ParentID={parent_id}, VariantID={product_id}")
-                product_doc = transform_product_for_es(merged)
-                es_service.index_product(product_doc)
-                logger.info(
-                    "Successfully indexed parent product after variant create",
-                    extra={"parent_id": parent_id, "variant_id": product_id},
-                )
+                # Only index if parent is published
+                if merged.get("status") == "publish":
+                    logger.info(f"Indexing parent product after variant update: ParentID={parent_id}, VariantID={product_id}")
+                    product_doc = transform_product_for_es(merged)
+                    es_service.index_product(product_doc)
+                    logger.info(
+                        "Successfully indexed parent product after variant create",
+                        extra={"parent_id": parent_id, "variant_id": product_id},
+                    )
+                else:
+                    logger.info(f"Parent product {parent_id} status is '{merged.get('status')}' - skipping index for variant trigger", extra={"variant_id": product_id})
             except Exception as e:
                 logger.error(
                     "Elasticsearch indexing failed for parent product (variant trigger)",
@@ -91,24 +96,27 @@ async def product_created(
         merged = handle_parent_product(product)
 
         # If variable product, fetch and update all variations (same as update logic)
-        if product.get("type") == "variable" and "variations" in product:
+        if product.get("type") == "variable":
             logger.info(f"Fetching variations for created parent product: ID={product_id}")
             try:
-                for variant_id in product["variations"]:
-                    variant_data = fetch_remote_product(variant_id)
-                    if variant_data:
-                        handle_variant_product(variant_data)
+                variations = get_product_variations(product_id)
+                for variant_data in variations:
+                    handle_variant_product(variant_data)
             except Exception as e:
                 logger.error(f"Error fetching variations for parent creation: {e}", extra={"product_id": product_id})
 
         if merged:
             try:
-                logger.info(f"Indexing product: ID={product_id}")
-                product_doc = transform_product_for_es(merged)
-                es_service.index_product(product_doc)
-                logger.info(
-                    "Successfully indexed product in ES", extra={"product_id": product_id}
-                )
+                # Only index if published
+                if merged.get("status") == "publish":
+                    logger.info(f"Indexing product: ID={product_id}")
+                    product_doc = transform_product_for_es(merged)
+                    es_service.index_product(product_doc)
+                    logger.info(
+                        "Successfully indexed product in ES", extra={"product_id": product_id}
+                    )
+                else:
+                    logger.info(f"Product {product_id} status is '{merged.get('status')}' - skipping index during creation")
             except Exception as e:
                 logger.error(
                     "Elasticsearch indexing failed for product",
