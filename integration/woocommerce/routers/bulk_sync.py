@@ -7,7 +7,7 @@ import time
 import logging
 import traceback
 from typing import Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from requests.auth import HTTPBasicAuth
 import requests
@@ -38,11 +38,12 @@ class BulkSyncRequest(BaseModel):
 class BulkSyncResponse(BaseModel):
     """Response model for bulk sync endpoint."""
     status: str
-    total_fetched: int
-    indexed_count: int
-    failed_count: int
-    failures: list
-    duration_seconds: float
+    message: str = ""
+    total_fetched: Optional[int] = 0
+    indexed_count: Optional[int] = 0
+    failed_count: Optional[int] = 0
+    failures: list = []
+    duration_seconds: Optional[float] = 0.0
 
 
 def _build_products_url(store_url: str, page: int, per_page: int) -> str:
@@ -170,50 +171,24 @@ def _process_products_for_indexing(products: list, store_url: str = None, consum
     return docs
 
 
-@router.post("/sync", response_model=BulkSyncResponse)
-async def bulk_sync_products(request: BulkSyncRequest):
+def run_bulk_sync_task(store_url: str, consumer_key: str, consumer_secret: str, per_page: int):
     """
-    Bulk fetch all products from WooCommerce and index them into Elasticsearch.
+    Background worker task for bulk fetching and indexing.
     """
     try:
         start_time = time.time()
-        
-        # Use provided credentials or fall back to environment variables
-        store_url = request.store_url or WOOCOMMERCE_STORE_URL
-        consumer_key = request.consumer_key or WOOCOMMERCE_CONSUMER_KEY
-        consumer_secret = request.consumer_secret or WOOCOMMERCE_CONSUMER_SECRET
-        per_page = min(request.per_page, 100)  # WooCommerce max is 100
-        
-        # Validate credentials
-        if not store_url:
-            raise HTTPException(status_code=400, detail="Store URL is required")
-        if not consumer_key or not consumer_secret:
-            raise HTTPException(status_code=400, detail="Consumer key and secret are required")
-        
-        logger.info(f"Starting bulk sync from: {store_url}")
-        
-        # Check Elasticsearch connection
-        if not es_service.check_connection():
-            raise HTTPException(
-                status_code=503, 
-                detail="Elasticsearch is not available. Please ensure it's running."
-            )
+        logger.info(f"Background Sync: Starting for {store_url}")
         
         # Fetch all products from WooCommerce
         products, error = _fetch_all_products(store_url, consumer_key, consumer_secret, per_page)
         
         if error:
-            raise HTTPException(status_code=400, detail=error)
+            logger.error(f"Background Sync Error: {error}")
+            return
         
         if not products:
-            return BulkSyncResponse(
-                status="completed",
-                total_fetched=0,
-                indexed_count=0,
-                failed_count=0,
-                failures=[],
-                duration_seconds=round(time.time() - start_time, 2)
-            )
+            logger.info("Background Sync: No products found.")
+            return
         
         # Process products (fetch variations if needed)
         processed_products = _process_products_for_indexing(
@@ -223,32 +198,62 @@ async def bulk_sync_products(request: BulkSyncRequest):
             consumer_secret=consumer_secret
         )
         
-        logger.info(f"Processed {len(processed_products)} products for indexing")
-        
         # Bulk index to Elasticsearch
         result = es_service.bulk_index_products(processed_products)
         
         duration = round(time.time() - start_time, 2)
-        
         logger.info(
-            f"Bulk sync completed: {result.get('success_count', 0)} indexed, "
+            f"Background Sync Completed: {result.get('success_count', 0)} indexed, "
             f"{result.get('failed_count', 0)} failed, took {duration}s"
+        )
+    except Exception as e:
+        logger.error(f"Background Sync Critical Failure: {str(e)}")
+        logger.error(traceback.format_exc())
+
+
+@router.post("/sync", response_model=BulkSyncResponse)
+async def bulk_sync_products(request: BulkSyncRequest, background_tasks: BackgroundTasks):
+    """
+    Trigger a bulk sync of WooCommerce products in the background.
+    """
+    try:
+        # Use provided credentials or fall back to environment variables
+        store_url = request.store_url or WOOCOMMERCE_STORE_URL
+        consumer_key = request.consumer_key or WOOCOMMERCE_CONSUMER_KEY
+        consumer_secret = request.consumer_secret or WOOCOMMERCE_CONSUMER_SECRET
+        per_page = min(request.per_page, 100)
+        
+        # Validate credentials
+        if not store_url:
+            raise HTTPException(status_code=400, detail="Store URL is required")
+        if not consumer_key or not consumer_secret:
+            raise HTTPException(status_code=400, detail="Consumer key and secret are required")
+        
+        # Pre-flight check: Elasticsearch connection
+        if not es_service.check_connection():
+            raise HTTPException(
+                status_code=503, 
+                detail="Elasticsearch is not available. Please ensure it's running."
+            )
+        
+        # Trigger background task
+        background_tasks.add_task(
+            run_bulk_sync_task,
+            store_url,
+            consumer_key,
+            consumer_secret,
+            per_page
         )
         
         return BulkSyncResponse(
-            status="completed",
-            total_fetched=len(products),
-            indexed_count=result.get("success_count", 0),
-            failed_count=result.get("failed_count", 0),
-            failures=result.get("failures", [])[:50],  # Limit failures to first 50
-            duration_seconds=duration
+            status="accepted",
+            message=f"Sync started for {store_url}. Running in background."
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Critical error in WooCommerce bulk sync: {str(e)}")
-        logger.error(traceback.format_exc())
+        logger.error(f"Error triggering bulk sync: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 

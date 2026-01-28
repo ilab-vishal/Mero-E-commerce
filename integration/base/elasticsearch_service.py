@@ -80,6 +80,13 @@ class ElasticsearchService:
         except Exception as e:
             logger.error(f"Elasticsearch initialization error: {e}")
 
+    def check_connection(self) -> bool:
+        """Verify that Elasticsearch is reachable."""
+        try:
+            return self.client.ping()
+        except:
+            return False
+
     def ensure_index_exists(self) -> bool:
         try:
             if not self.client.indices.exists(index=self.index_name):
@@ -108,9 +115,9 @@ class ElasticsearchService:
             logger.error(f"Failed to index product {product.product_id}: {e}")
             return False
 
-    def bulk_index_products(self, products: List[ProductDocument]) -> bool:
+    def bulk_index_products(self, products: List[ProductDocument]) -> dict:
         if not products:
-            return True
+            return {"success_count": 0, "failed_count": 0, "failures": []}
         try:
             self.ensure_index_exists()
             actions = [
@@ -122,12 +129,24 @@ class ElasticsearchService:
                 for p in products
             ]
             success_count, errors = helpers.bulk(self.client, actions)
-            if errors:
-                logger.error(f"Bulk indexing encountered {len(errors)} errors")
-            return success_count > 0
+            
+            failed_count = len(errors) if isinstance(errors, list) else 0
+            
+            if failed_count > 0:
+                logger.error(f"Bulk indexing encountered {failed_count} errors")
+                
+            return {
+                "success_count": success_count,
+                "failed_count": failed_count,
+                "failures": errors if isinstance(errors, list) else []
+            }
         except Exception as e:
             logger.error(f"Critical failure during bulk indexing: {e}")
-            return False
+            return {
+                "success_count": 0,
+                "failed_count": len(products),
+                "failures": [{"error": str(e)}]
+            }
 
     def delete_product(self, product_id: Any) -> bool:
         try:
