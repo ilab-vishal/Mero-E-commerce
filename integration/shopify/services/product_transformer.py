@@ -1,36 +1,16 @@
 from typing import Any, Dict, Optional
-from html.parser import HTMLParser
+import re
 from utils.logging import get_logger
 from base.models import ProductDocument, Variant
 
 logger = get_logger(__name__)
 
-
-class TagStripper(HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.reset()
-        self.strict = False
-        self.convert_charrefs = True
-        self.text = []
-
-    def handle_data(self, d):
-        self.text.append(d)
-
-    def get_data(self):
-        return "".join(self.text)
-
-
-def strip_html(html_content: Optional[str]) -> Optional[str]:
-    """
-    Strip HTML tags from a string and return plain text.
-    """
-    if not html_content:
-        return html_content
-    
-    stripper = TagStripper()
-    stripper.feed(html_content)
-    return stripper.get_data().strip()
+def strip_html(text: Optional[str]) -> Optional[str]:
+    """Remove HTML tags from string using simple regex."""
+    if text:
+        clean = re.compile("<.*?>")
+        return re.sub(clean, "", text).strip()
+    return text
 
 
 def transform_shopify_product(payload: dict, inventory_data: Optional[Dict[str, Dict[str, Any]]] = None) -> ProductDocument:

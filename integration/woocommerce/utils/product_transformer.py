@@ -69,6 +69,10 @@ def transform_product_for_es(product: dict) -> ProductDocument:
             if isinstance(v_image, dict):
                 v_image = v_image.get("src")
 
+            # Weight Handling - fix to allow 0 weight
+            weight = v.get("weight")
+            weight_unit = v.get("weight_unit") or "kg" # Woo defaults to store setting
+
             variants_list.append(
                 Variant(
                     variant_id=str(v.get("id")),
@@ -77,8 +81,8 @@ def transform_product_for_es(product: dict) -> ProductDocument:
                     compare_at_price=compare_price,
                     stock=stock,
                     image=v_image,
-                    weight=float(v.get("weight", 0) or 0) if v.get("weight") else None,
-                    weight_unit="g",  # WooCommerce uses shop settings, default to grams
+                    weight=float(weight) if weight and weight != "" else 0.0 if weight == 0 or weight == "0" else None,
+                    weight_unit=weight_unit,
                     attributes=variant_flat_attrs
                 )
             )
