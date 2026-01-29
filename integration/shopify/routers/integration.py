@@ -4,7 +4,10 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from config import SHOPIFY_CLIENT_ID
-from shopify.services.shopify_services import get_client_product_status_breakdown
+from shopify.services.shopify_services import (
+    get_client_product_status_breakdown,
+    list_client_products
+)
 from base.elasticsearch_service import es_service
 from shopify.services.product_transformer import transform_shopify_product
 from base.models import ProductDocument
