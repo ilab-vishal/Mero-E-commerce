@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any, List
 from config import (
     SHOPIFY_ACCESS_TOKEN,
     SHOPIFY_STORE_URL,
+    SHOPIFY_API_VERSION,
     get_shopify_products_url as get_products_url,
     get_shopify_product_url as get_product_url,
     get_shopify_products_count_url as get_products_count_url,
@@ -352,8 +353,93 @@ def register_client_webhook(
                 f"Status: {response.status_code}, Response: {data}"
             )
             
+            
         return data
         
     except requests.RequestException as e:
         logger.error(f"Failed to register webhook {topic}: {e}")
         raise
+
+
+def get_inventory_weights(
+    store_url: str,
+    access_token: str,
+    inventory_item_ids: List[str]
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Fetch weight and weight_unit for a list of inventory item IDs using GraphQL.
+    
+    Returns a mapping of inventory_item_id -> {"weight": float, "unit": str}
+    """
+    if not inventory_item_ids:
+        return {}
+
+    # Clean store_url - ensure it's just the hostname
+    host = store_url.split("//")[-1].split("/")[0]
+    url = f"https://{host}/admin/api/{SHOPIFY_API_VERSION}/graphql.json"
+    headers = _get_headers(access_token)
+    
+    # GraphQL query to get inventory item details
+    query_parts = []
+    for i, item_id in enumerate(inventory_item_ids):
+        gid = item_id if item_id.startswith("gid://") else f"gid://shopify/InventoryItem/{item_id}"
+        query_parts.append(f"""
+            item_{i}: node(id: "{gid}") {{
+                ... on InventoryItem {{
+                    id
+                    measurement {{
+                        weight {{
+                            value
+                            unit
+                        }}
+                    }}
+                }}
+            }}
+        """)
+        
+    query = f"query {{ {' '.join(query_parts)} }}"
+    
+    def normalize_unit(unit: str) -> str:
+        u = unit.upper()
+        if u == "GRAMS": return "g"
+        if u == "KILOGRAMS": return "kg"
+        if u == "POUNDS": return "lb"
+        if u == "OUNCES": return "oz"
+        return unit.lower()
+
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            json={"query": query},
+            timeout=30
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        if "errors" in data:
+            logger.error(f"GraphQL errors while fetching weights: {data['errors']}")
+            return {}
+            
+        results = {}
+        nodes = data.get("data", {})
+        for key, node in nodes.items():
+            if node and "measurement" in node:
+                m = node["measurement"]
+                if m and m["weight"]:
+                    item_id = node["id"].split("/")[-1]
+                    results[item_id] = {
+                        "weight": m["weight"]["value"],
+                        "unit": normalize_unit(m["weight"]["unit"])
+                    }
+        
+        if inventory_item_ids:
+            logger.info(f"Successfully fetched items from GraphQL. Found weights for {len(results)} out of {len(inventory_item_ids)} items.")
+            if results:
+                logger.debug(f"Weight results: {results}")
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Failed to fetch inventory weights via GraphQL: {e}", exc_info=True)
+        return {}

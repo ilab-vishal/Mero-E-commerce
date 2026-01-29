@@ -43,8 +43,39 @@ async def product_updated(
     try:
         product_data = json.loads(body.decode("utf-8"))
         product_id = product_data.get("id")
+        
+        # Determine if we need to fetch missing weights
+        # Recent Shopify API versions move weight to InventoryItem, making it null in Product webhooks
+        inventory_data = None
+        variants = product_data.get("variants", [])
+        
+        # Check if weights are missing (any variant has null grams)
+        needs_enrichment = any(v.get("grams") is None for v in variants)
+        
+        if needs_enrichment and variants:
+            logger.info(f"Enriching weights for product {product_id} (found null weight fields)")
+            from shopify.services.shopify_services import get_inventory_weights
+            from config import SHOPIFY_ACCESS_TOKEN
+            
+            # Extract store domain from request headers or use default
+            shop_domain = request.headers.get("X-Shopify-Shop-Domain")
+            if not shop_domain:
+                from config import SHOPIFY_STORE_URL
+                shop_domain = SHOPIFY_STORE_URL
+                
+            inv_ids = [str(v.get("inventory_item_id")) for v in variants if v.get("inventory_item_id")]
+            if inv_ids:
+                inventory_data = get_inventory_weights(
+                    store_url=shop_domain,
+                    access_token=SHOPIFY_ACCESS_TOKEN,
+                    inventory_item_ids=inv_ids
+                )
+            else:
+                logger.warning(f"Product {product_id} variants have no inventory_item_ids, cannot fetch weights")
+        else:
+            logger.debug(f"Weight enrichment not requested or no variants for product {product_id}")
 
-        product_doc = transform_shopify_product(product_data)
+        product_doc = transform_shopify_product(product_data, inventory_data=inventory_data)
         
         # Log the transformed data for visibility
         logger.json(f"Transformed Product {product_doc.product_id}", product_doc.dict())

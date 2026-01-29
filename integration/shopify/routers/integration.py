@@ -129,9 +129,37 @@ async def background_bulk_sync(store_url: str, access_token: str, client_id: str
                 
             # Transform the batch
             batch_to_index = []
+            
+            # Shopify Product API often omits weight in recent versions
+            enrich_weights = False
+            if products_batch_data:
+                # Check if any variant in the first few products is missing weight
+                for p in products_batch_data[:5]:
+                    if any(v.get("grams") is None for v in p.get("variants", [])):
+                        enrich_weights = True
+                        break
+            
+            inventory_data_map = {}
+            if enrich_weights:
+                logger.info("Weights missing in bulk batch, fetching from GraphQL...")
+                from shopify.services.shopify_services import get_inventory_weights
+                
+                # Collect all inventory item IDs in the batch
+                all_inv_ids = []
+                for p in products_batch_data:
+                    for v in p.get("variants", []):
+                        if v.get("inventory_item_id"):
+                            all_inv_ids.append(str(v.get("inventory_item_id")))
+                
+                # Fetch in chunks of 50 to avoid massive GraphQL queries
+                for i in range(0, len(all_inv_ids), 50):
+                    chunk = all_inv_ids[i:i+50]
+                    chunk_data = get_inventory_weights(store_url, access_token, chunk)
+                    inventory_data_map.update(chunk_data)
+
             for product_data in products_batch_data:
                 try:
-                    product_doc = transform_shopify_product(product_data)
+                    product_doc = transform_shopify_product(product_data, inventory_data=inventory_data_map)
                     batch_to_index.append(product_doc)
                     
                     # Log the transformed data for visibility

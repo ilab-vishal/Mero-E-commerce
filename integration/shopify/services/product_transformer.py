@@ -1,10 +1,39 @@
+from typing import Any, Dict, Optional
+from html.parser import HTMLParser
 from utils.logging import get_logger
 from base.models import ProductDocument, Variant
 
 logger = get_logger(__name__)
 
 
-def transform_shopify_product(payload: dict) -> ProductDocument:
+class TagStripper(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.reset()
+        self.strict = False
+        self.convert_charrefs = True
+        self.text = []
+
+    def handle_data(self, d):
+        self.text.append(d)
+
+    def get_data(self):
+        return "".join(self.text)
+
+
+def strip_html(html_content: Optional[str]) -> Optional[str]:
+    """
+    Strip HTML tags from a string and return plain text.
+    """
+    if not html_content:
+        return html_content
+    
+    stripper = TagStripper()
+    stripper.feed(html_content)
+    return stripper.get_data().strip()
+
+
+def transform_shopify_product(payload: dict, inventory_data: Optional[Dict[str, Dict[str, Any]]] = None) -> ProductDocument:
     product_id = payload.get("id")
     logger.debug(f"Transforming product payload: {product_id}")
     
@@ -52,9 +81,20 @@ def transform_shopify_product(payload: dict) -> ProductDocument:
             name = option_names.get(opt_key, f"Option {i}")
             attributes[name] = val
         
-        # Weight handling - Shopify provides grams directly or weight with unit
-        weight = v.get("grams") or v.get("weight")
-        weight_unit = v.get("weight_unit", "g")
+        # Weight handling
+        inv_id = str(v.get("inventory_item_id"))
+        inv_item = inventory_data.get(inv_id) if inventory_data else None
+        
+        if inv_item:
+            weight = inv_item.get("weight")
+            weight_unit = inv_item.get("unit", "g")
+        else:
+            # Fallback to payload fields, ensuring we don't treat 0 as None
+            weight = v.get("grams") 
+            if weight is None:
+                weight = v.get("weight")
+            
+            weight_unit = v.get("weight_unit") or "g"
         
         variants_list.append(
             Variant(
@@ -64,7 +104,7 @@ def transform_shopify_product(payload: dict) -> ProductDocument:
                 compare_at_price=compare_at_price,
                 stock=qty,
                 image=variant_image,
-                weight=float(weight) if weight else None,
+                weight=float(weight) if weight is not None else None,
                 weight_unit=weight_unit,
                 attributes=attributes
             )
@@ -90,13 +130,26 @@ def transform_shopify_product(payload: dict) -> ProductDocument:
     min_price = prices[0] if prices else 0.0
     max_price = prices[-1] if prices else 0.0
 
+    categories = []
+    
+    # Try to get standard category from "category" object
+    std_category = payload.get("category")
+    if std_category and isinstance(std_category, dict):
+        cat_name = std_category.get("name")
+        if cat_name:
+            categories.append(cat_name)
+    
+    # Fallback to product_type if no standard category found
+    if not categories and payload.get("product_type"):
+        categories.append(payload.get("product_type"))
+        
     doc = ProductDocument(
         product_id=str(payload["id"]),
         name=str(payload.get("title", "")),
-        description=payload.get("body_html"),
+        description=strip_html(payload.get("body_html")),
         vendor=payload.get("vendor"),
         brand=payload.get("vendor"),
-        categories=[payload.get("product_type")] if payload.get("product_type") else [],
+        categories=categories,
         tags=[t.strip() for t in payload.get("tags", "").split(",") if t.strip()],
         slug=payload.get("handle"),
         
