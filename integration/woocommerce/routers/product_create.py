@@ -72,17 +72,13 @@ async def product_created(
         merged = get_product(parent_id)
         if merged:
             try:
-                # Only index if parent is published
-                if merged.get("status") == "publish":
-                    logger.info(f"Indexing parent product after variant update: ParentID={parent_id}, VariantID={product_id}")
-                    product_doc = transform_product_for_es(merged)
-                    es_service.index_product(product_doc)
-                    logger.info(
-                        "Successfully indexed parent product after variant create",
-                        extra={"parent_id": parent_id, "variant_id": product_id},
-                    )
-                else:
-                    logger.info(f"Parent product {parent_id} status is '{merged.get('status')}' - skipping index for variant trigger", extra={"variant_id": product_id})
+                logger.info(f"Indexing parent product after variant update: ParentID={parent_id}, VariantID={product_id}")
+                product_doc = transform_product_for_es(merged)
+                es_service.index_product(product_doc)
+                logger.info(
+                    "Successfully indexed parent product after variant create",
+                    extra={"parent_id": parent_id, "variant_id": product_id},
+                )
             except Exception as e:
                 logger.error(
                     "Elasticsearch indexing failed for parent product (variant trigger)",
@@ -107,16 +103,12 @@ async def product_created(
 
         if merged:
             try:
-                # Only index if published
-                if merged.get("status") == "publish":
-                    logger.info(f"Indexing product: ID={product_id}")
-                    product_doc = transform_product_for_es(merged)
-                    es_service.index_product(product_doc)
-                    logger.info(
-                        "Successfully indexed product in ES", extra={"product_id": product_id}
-                    )
-                else:
-                    logger.info(f"Product {product_id} status is '{merged.get('status')}' - skipping index during creation")
+                logger.info(f"Indexing product: ID={product_id}")
+                product_doc = transform_product_for_es(merged)
+                es_service.index_product(product_doc)
+                logger.info(
+                    "Successfully indexed product in ES", extra={"product_id": product_id}
+                )
             except Exception as e:
                 logger.error(
                     "Elasticsearch indexing failed for product",

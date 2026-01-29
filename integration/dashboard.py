@@ -18,7 +18,7 @@ st.set_page_config(
 API_BASE_URL = os.getenv("API_URL", "http://app:8000")
 
 # --- UI Header ---
-st.title("🚀 Mero Integration Hub")
+st.title("Mero Integration Hub")
 st.markdown("---")
 
 # --- Sidebar Selection ---
@@ -37,7 +37,7 @@ api_prefix = f"/api/{platform_key}"
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    st.header(f"🔗 {platform} Connection")
+    st.header(f"{platform} Connection")
     
     with st.form("connection_form"):
         store_url = st.text_input(
@@ -91,7 +91,7 @@ with col1:
                         st.error(f"🌐 Network Error: Could not reach backend API ({e})")
 
 with col2:
-    st.header("⚙️ Operations")
+    st.header("Operations")
     
     st.subheader("Bulk Synchronization")
     st.write("Trigger a full re-sync of your product catalog to Elasticsearch.")

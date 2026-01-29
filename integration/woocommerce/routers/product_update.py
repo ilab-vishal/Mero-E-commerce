@@ -108,16 +108,6 @@ async def product_updated(
         if merged:
             logger.info("Parent product processed", extra={"product_id": product_id})
 
-    # Status handling: only index 'publish' products
-    if merged and merged.get("status") != "publish":
-        logger.info(f"Product {merged.get('id')} status is '{merged.get('status')}' - removing from index", extra={"product_id": merged.get('id')})
-        try:
-            es_service.delete_product(str(merged.get('id')))
-            return {"status": "removed", "message": f"Product removed because status is {merged.get('status')}"}
-        except Exception as e:
-            logger.error(f"Error removing non-published product from ES: {e}", extra={"product_id": merged.get('id')})
-            return JSONResponse(status_code=500, content={"status": "error", "reason": f"ES deletion failed: {str(e)}"})
-
     # Index in ES
     try:
         logger.info(f"Indexing updated product: ID={merged.get('id')}")

@@ -15,7 +15,7 @@ def _add_auth_params(url: str) -> str:
     return f"{url}{separator}consumer_key={WOOCOMMERCE_CONSUMER_KEY}&consumer_secret={WOOCOMMERCE_CONSUMER_SECRET}"
 
 
-def list_products(limit: int = None, status: str = "publish"):
+def list_products(limit: int = None, status: str = None):
     """Fetch list of products from WooCommerce"""
     products_url = list_products_url()
     if not WOOCOMMERCE_CONSUMER_KEY or not WOOCOMMERCE_CONSUMER_SECRET:
@@ -120,8 +120,7 @@ def get_store_product_count(store_url: str, consumer_key: str, consumer_secret: 
     params = {
         "consumer_key": consumer_key,
         "consumer_secret": consumer_secret,
-        "per_page": 1,
-        "status": "publish"
+        "per_page": 1
     }
     
     try:
@@ -132,3 +131,40 @@ def get_store_product_count(store_url: str, consumer_key: str, consumer_secret: 
     except Exception as e:
         print(f"Error fetching store count: {e}")
         return 0
+
+def get_store_product_status_breakdown(store_url: str, consumer_key: str, consumer_secret: str) -> dict:
+    """
+    Fetch product counts grouped by status from WooCommerce.
+    Returns a dict like: {"publish": 5, "draft": 2, "pending": 1, "total": 8}
+    """
+    if not store_url.startswith(('http://', 'https://')):
+        store_url = f"http://{store_url}"
+    
+    url = f"{store_url.rstrip('/')}/wp-json/wc/v3/products"
+    
+    # Common WooCommerce statuses
+    statuses = ["publish", "draft", "pending", "private"]
+    breakdown = {}
+    total = 0
+    
+    for status in statuses:
+        params = {
+            "consumer_key": consumer_key,
+            "consumer_secret": consumer_secret,
+            "per_page": 1,
+            "status": status
+        }
+        
+        try:
+            response = requests.get(url, params=params, timeout=30)
+            if response.status_code == 200:
+                count = int(response.headers.get('X-WP-Total', 0))
+                if count > 0:
+                    breakdown[status] = count
+                    total += count
+        except Exception as e:
+            print(f"Error fetching {status} products: {e}")
+            continue
+    
+    breakdown["total"] = total
+    return breakdown

@@ -136,9 +136,7 @@ def list_client_products(
     store_url = integration_data.get("store_url")
     url = get_products_url(store_url)
     
-    params = {
-        "status": "active"
-    }
+    params = {}
     
     # If page_info is provided, Shopify ignores other parameters except limit
     if page_info:
@@ -203,7 +201,6 @@ def get_client_product_count(
         response = requests.get(
             url,
             headers=_get_headers(access_token),
-            params={"status": "active"},
             timeout=30
         )
         response.raise_for_status()
@@ -217,6 +214,57 @@ def get_client_product_count(
     except requests.RequestException as e:
         logger.error(f"Failed to fetch product count: {e}")
         raise
+
+
+def get_client_product_status_breakdown(
+    store_url: str,
+    access_token: str
+) -> dict:
+    """
+    Fetch product counts grouped by status from Shopify.
+    Returns a dict like: {"active": 5, "draft": 2, "archived": 1, "total": 8}
+    """
+    url = get_products_url(store_url)
+    
+    # Common Shopify statuses
+    statuses = ["active", "draft", "archived"]
+    breakdown = {}
+    total = 0
+    
+    for status in statuses:
+        try:
+            response = requests.get(
+                url,
+                headers=_get_headers(access_token),
+                params={"status": status, "limit": 1},
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            # Shopify doesn't provide total count in headers like WooCommerce
+            # We need to use the count endpoint for each status
+            count_url = get_products_count_url(store_url)
+            count_response = requests.get(
+                count_url,
+                headers=_get_headers(access_token),
+                params={"status": status},
+                timeout=30
+            )
+            count_response.raise_for_status()
+            
+            data = count_response.json()
+            count = data.get("count", 0)
+            
+            if count > 0:
+                breakdown[status] = count
+                total += count
+                
+        except requests.RequestException as e:
+            logger.error(f"Failed to fetch {status} product count: {e}")
+            continue
+    
+    breakdown["total"] = total
+    return breakdown
 
 
 def get_client_product(

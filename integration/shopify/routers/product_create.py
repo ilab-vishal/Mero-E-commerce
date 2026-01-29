@@ -43,13 +43,6 @@ async def product_created(
     try:
         product_data = json.loads(body.decode("utf-8"))
         
-        # Only process active products
-        status = (product_data.get("status") or "").lower()
-        logger.info(f"Product {product_data.get('id')} received with status: '{status}'")
-        if status != "active":
-            logger.info(f"Skipping product {product_data.get('id')} - Status is '{status}' (expected 'active')")
-            return {"status": "skipped", "message": f"Product status is {status}"}
-
         product_doc = transform_shopify_product(product_data)
         
         # Log the transformed data for visibility

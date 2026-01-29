@@ -43,14 +43,6 @@ async def product_updated(
     try:
         product_data = json.loads(body.decode("utf-8"))
         product_id = product_data.get("id")
-        status = (product_data.get("status") or "").lower()
-        logger.info(f"Product {product_id} received with status: '{status}'")
-
-        # Handle status logic
-        if status != "active":
-            logger.info(f"🗑️ Product {product_id} is '{status}' - removing from index")
-            es_service.delete_product(product_id)
-            return {"status": "removed", "message": f"Product removed because status is {status}"}
 
         product_doc = transform_shopify_product(product_data)
         

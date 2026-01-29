@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from config import SHOPIFY_CLIENT_ID
-from shopify.services.shopify_services import list_client_products, get_client_product_count
+from shopify.services.shopify_services import get_client_product_status_breakdown
 from base.elasticsearch_service import es_service
 from shopify.services.product_transformer import transform_shopify_product
 from base.models import ProductDocument
@@ -64,15 +64,28 @@ async def test_connection(creds: ConnectionCredentials):
     )
     
     try:
-        # Validate credentials by fetching product count
-        count = get_client_product_count(
+        # Fetch product breakdown by status
+        breakdown = get_client_product_status_breakdown(
             store_url=creds.store_url,
             access_token=creds.access_token
         )
+        
+        total = breakdown.get("total", 0)
+        
+        # Build status breakdown message
+        status_parts = []
+        for status in ["active", "draft", "archived"]:
+            if status in breakdown and breakdown[status] > 0:
+                status_parts.append(f"{breakdown[status]} {status}")
+        
+        status_message = ", ".join(status_parts) if status_parts else "0"
+        
         return {
             "status": "success", 
             "message": "Connection successful!", 
-            "details": f"Success! We found {count} products in your store. You are ready to start synchronization."
+            "details": f"Success! We found {total} product{'s' if total != 1 else ''} in your store ({status_message}). You are ready to start synchronization.",
+            "total_store_products": total,
+            "product_breakdown": breakdown
         }
     except Exception as e:
         logger.error(f"Connection test failed: {e}")
@@ -118,12 +131,6 @@ async def background_bulk_sync(store_url: str, access_token: str, client_id: str
             batch_to_index = []
             for product_data in products_batch_data:
                 try:
-                    # Double check status (list_client_products already filters but this is for safety)
-                    status = (product_data.get("status") or "").lower()
-                    if status != "active":
-                        logger.debug(f"Skipping product {product_data.get('id')} during sync - Status is {status}")
-                        continue
-
                     product_doc = transform_shopify_product(product_data)
                     batch_to_index.append(product_doc)
                     
