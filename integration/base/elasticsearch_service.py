@@ -29,7 +29,6 @@ PRODUCT_MAPPING = {
                 }
             },
             "description": {"type": "text"},
-            "short_description": {"type": "text"},
             "vendor": {"type": "keyword"},
             "brand": {"type": "keyword"},
             "categories": {"type": "keyword"},
@@ -56,7 +55,6 @@ PRODUCT_MAPPING = {
                 "properties": {
                     "variant_id": {"type": "keyword"},
                     "sku": {"type": "keyword"},
-                    "barcode": {"type": "keyword"},
                     "price": {"type": "float"},
                     "compare_at_price": {"type": "float"},
                     "stock": {"type": "integer"},

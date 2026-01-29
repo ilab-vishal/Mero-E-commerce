@@ -73,7 +73,6 @@ def transform_product_for_es(product: dict) -> ProductDocument:
                 Variant(
                     variant_id=str(v.get("id")),
                     sku=v.get("sku"),
-                    barcode=v.get("barcode"), 
                     price=price,
                     compare_at_price=compare_price,
                     stock=stock,
@@ -133,7 +132,6 @@ def transform_product_for_es(product: dict) -> ProductDocument:
         product_id=product_id,
         name=product.get("name", "N/A"),
         description=strip_html(product.get("description")),
-        short_description=strip_html(product.get("short_description")),
         vendor="WooCommerce Store",  # Default for WooCommerce
         brand=brand,
         categories=categories,

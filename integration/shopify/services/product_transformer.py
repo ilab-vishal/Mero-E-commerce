@@ -60,7 +60,6 @@ def transform_shopify_product(payload: dict) -> ProductDocument:
             Variant(
                 variant_id=str(v.get("id")),
                 sku=v.get("sku"),
-                barcode=v.get("barcode"),  # GTIN/UPC
                 price=price,
                 compare_at_price=compare_at_price,
                 stock=qty,
@@ -95,7 +94,6 @@ def transform_shopify_product(payload: dict) -> ProductDocument:
         product_id=str(payload["id"]),
         name=str(payload.get("title", "")),
         description=payload.get("body_html"),
-        short_description=None,  # Shopify doesn't have short description
         vendor=payload.get("vendor"),
         brand=payload.get("vendor"),
         categories=[payload.get("product_type")] if payload.get("product_type") else [],

@@ -4,7 +4,6 @@ from pydantic import BaseModel
 class Variant(BaseModel):
     variant_id: str
     sku: Optional[str] = None
-    barcode: Optional[str] = None  # GTIN/UPC for product identification
     price: float
     compare_at_price: Optional[float] = None
     stock: int
@@ -17,7 +16,6 @@ class ProductDocument(BaseModel):
     product_id: str
     name: str
     description: Optional[str] = None
-    short_description: Optional[str] = None  # WooCommerce has this, useful for AI summaries
     vendor: Optional[str] = None
     brand: Optional[str] = None
     categories: List[str] = []  # Changed to list for WooCommerce multi-category support
