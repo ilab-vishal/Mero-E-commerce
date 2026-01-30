@@ -144,7 +144,7 @@ def get_store_product_status_breakdown(store_url: str, consumer_key: str, consum
     
     # Common WooCommerce statuses
     statuses = ["publish", "draft", "pending", "private"]
-    breakdown = {}
+    breakdown = {}  #stores counts by status.
     total = 0
     
     for status in statuses:

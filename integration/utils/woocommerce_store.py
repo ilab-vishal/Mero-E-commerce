@@ -1,6 +1,6 @@
 # ============================================================
 # WOOCOMMERCE PRODUCT STORE
-# Merges parent products and variants like Shopify structure
+# Merges parent products and variants 
 # ============================================================
 
 # In-memory store for merged products
@@ -85,7 +85,6 @@ def handle_variant_product(variant: dict) -> dict | None:
     variant_data = {
         "id": variant_id,
         "sku": variant.get("sku"),
-        "barcode": None,  # WooCommerce doesn't have barcode in standard API, but keep placeholder
         "attributes": variant_attributes,
         "price": variant.get("price"),
         "regular_price": variant.get("regular_price"),
