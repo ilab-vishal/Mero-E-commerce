@@ -48,7 +48,7 @@ class LLMService:
         Instructions:
         1. Include all product-level fields: 
         product_id, name, brand, vendor, categories, tags, slug, status, price_min, price_max, currency, 
-        total_inventory, on_sale, description, created_at, updated_at, primary_image, images.
+        total_inventory, on_sale, description, primary_image, images.
         2. For each variant, include: 
         variant_id, sku, price, compare_at_price, stock, weight with weight_unit, attributes (key and value), and image URL.
         3. Include all numbers, text, attribute values, and URLs exactly as they appear in the JSON.

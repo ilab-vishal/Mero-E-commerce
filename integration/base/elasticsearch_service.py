@@ -104,6 +104,10 @@ ENHANCED_DESCRIPTION_MAPPING = {
             },
             "updated_at": {"type": "date"}
         }
+    },
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0
     }
 }
 
@@ -153,7 +157,8 @@ class ElasticsearchService:
                 logger.info(f"Creating index {self.enhanced_index_name} with vector mappings")
                 self.client.indices.create(
                     index=self.enhanced_index_name,
-                    mappings=ENHANCED_DESCRIPTION_MAPPING["mappings"]
+                    mappings=ENHANCED_DESCRIPTION_MAPPING["mappings"],
+                    settings=ENHANCED_DESCRIPTION_MAPPING["settings"]
                 )
             return True
         except Exception as e:
