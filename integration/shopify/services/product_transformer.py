@@ -183,11 +183,7 @@ def transform_shopify_product(payload: dict, inventory_data: Optional[Dict[str, 
         
         # Media
         primary_image=primary_image,
-        images=all_images,
-        
-        # Meta
-        updated_at=payload.get("updated_at"),
-        created_at=payload.get("created_at")
+        images=all_images
     )
     
     logger.debug(f"Successfully transformed product: {product_id} with {len(variants_list)} variants")

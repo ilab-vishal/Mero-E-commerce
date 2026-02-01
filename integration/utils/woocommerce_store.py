@@ -43,8 +43,6 @@ def handle_parent_product(product: dict) -> dict | None:
         "tags": product.get("tags", []),
         "brands": product.get("brands", []),
         "images": product.get("images", []),
-        "date_created": product.get("date_created"),
-        "date_modified": product.get("date_modified"),
         "variants": existing_variants
     }
 

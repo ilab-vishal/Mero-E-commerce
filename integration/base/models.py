@@ -37,6 +37,4 @@ class ProductDocument(BaseModel):
     primary_image: Optional[str] = None
     images: List[str] = []  # All product images
     
-    # Metadata
-    updated_at: Optional[str] = None
-    created_at: Optional[str] = None
+    

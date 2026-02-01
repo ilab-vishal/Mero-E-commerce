@@ -136,7 +136,7 @@ def transform_product_for_es(product: dict) -> ProductDocument:
         product_id=product_id,
         name=product.get("name", "N/A"),
         description=strip_html(product.get("description")),
-        vendor="WooCommerce Store",  # Default for WooCommerce
+        vendor="FashionHub",
         brand=brand,
         categories=categories,
         tags=tags,
@@ -148,8 +148,6 @@ def transform_product_for_es(product: dict) -> ProductDocument:
         on_sale=product.get("on_sale", False),
         variants=variants_list,
         primary_image=main_image,
-        images=images,
-        updated_at=product.get("date_modified"),
-        created_at=product.get("date_created")
+        images=images
     )
     

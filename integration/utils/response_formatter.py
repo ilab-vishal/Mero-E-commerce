@@ -12,9 +12,6 @@ def format_single_product_data(data):
     print(f"   Vendor:       {product.get('vendor', 'N/A')}")
     print(f"   Product Type: {product.get('product_type', 'N/A')}")
     print(f"   Status:       {product.get('status', 'N/A')}")
-    print(f"   Created:      {product.get('created_at', 'N/A')}")
-    print(f"   Updated:      {product.get('updated_at', 'N/A')}")
-    print(f"   Published:    {product.get('published_at', 'N/A')}")
     
     print(f"\n📝 DESCRIPTION:")
     body_html = product.get('body_html', 'N/A')
@@ -87,8 +84,6 @@ def format_product_data(data):
         print(f"   Vendor:       {product.get('vendor', 'N/A')}")
         print(f"   Product Type: {product.get('product_type', 'N/A')}")
         print(f"   Status:       {product.get('status', 'N/A')}")
-        print(f"   Created:      {product.get('created_at', 'N/A')}")
-        print(f"   Updated:      {product.get('updated_at', 'N/A')}")
         
         print(f"\n📝 DESCRIPTION:")
         body_html = product.get('body_html', 'N/A')

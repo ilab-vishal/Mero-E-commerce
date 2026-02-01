@@ -19,7 +19,7 @@ class LLMService:
             
         # Initialize LangChain Models for OpenAI
         self.chat_model = ChatOpenAI(
-            model="gpt-3.5-turbo",
+            model="gpt-4.1",
             api_key=api_key,
             temperature=0
         )
@@ -39,23 +39,29 @@ class LLMService:
             return None
 
         prompt = ChatPromptTemplate.from_template("""
-You are a Professional Data Transcriber. Convert the product JSON into a natural language "Product Knowledge Document" optimized for AI search.
+        Role: JSON Transcriber for E-commerce Products
 
-CRITICAL RULES:
-1. EXHAUSTIVE COVERAGE: Include every single field, ID, and URL.
-2. NO HALLUCINATION: Use ONLY provided JSON facts.
-3. STRUCTURE & REDUNDANCY:
-   - Start with Product Name, IDs, and Brand.
-   - SUMMARY SECTION: Explicitly list all available colors and sizes in one sentence (e.g. "Available in colors Red, Blue and sizes S, M, L"). This is critical for broad searches.
-   - DETAILED VARIANTS: List EVERY variant with its ID, SKU, exact Price (with currency), Stock, Color, and Size. 
-   - IMAGES: List ALL image URLs from the 'images' list.
-4. CLEANING: Remove HTML from the description.
-5. NARRATIVE: Write as a single, high-density paragraph.
+        Task:
+        Convert the provided ProductDocument JSON into a single factual paragraph for vector embeddings.
+        The output must exactly reflect all values in the JSON and be suitable for embeddings.
 
-JSON DATA:
-{product_json}
+        Instructions:
+        1. Include all product-level fields: 
+        product_id, name, brand, vendor, categories, tags, slug, status, price_min, price_max, currency, 
+        total_inventory, on_sale, description, created_at, updated_at, primary_image, images.
+        2. For each variant, include: 
+        variant_id, sku, price, compare_at_price, stock, weight with weight_unit, attributes (key and value), and image URL.
+        3. Include all numbers, text, attribute values, and URLs exactly as they appear in the JSON.
+        4. Output all URLs explicitly — primary_image, images array, and each variant image.
+        5. Remove HTML but preserve content.
+        6. Omit only null or empty fields.
+        7. Output a **single continuous paragraph** using short factual sentences.
+        8. Do not summarize, paraphrase, or interpret values.
+        9. Include everything present in the JSON — no fields should be skipped.
 
-Write the complete, exhaustive product paragraph now:
+        Product JSON:
+        {product_json}
+        
         """)
 
         # Build the chain

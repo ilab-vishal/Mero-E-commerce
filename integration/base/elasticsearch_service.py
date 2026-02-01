@@ -42,8 +42,6 @@ PRODUCT_MAPPING = {
             "total_inventory": {"type": "integer"},
             "status": {"type": "keyword"},
             "on_sale": {"type": "boolean"},
-            "updated_at": {"type": "date"},
-            "created_at": {"type": "date"},
             
             # Media
             "primary_image": {"type": "keyword", "index": False},
