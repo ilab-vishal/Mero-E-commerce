@@ -91,6 +91,24 @@ PRODUCT_MAPPING = {
     }
 }
 
+# Mapping for Enhanced Descriptions (Vector Search)
+ENHANCED_DESCRIPTION_MAPPING = {
+    "mappings": {
+        "properties": {
+            "product_id": {"type": "keyword"},
+            "original_name": {"type": "text"},
+            "generated_description": {"type": "text"},
+            "description_embedding": {
+                "type": "dense_vector",
+                "dims": 1536,  # OpenAI text-embedding-3-small uses 1536 dimensions
+                "index": True,
+                "similarity": "cosine"
+            },
+            "updated_at": {"type": "date"}
+        }
+    }
+}
+
 class ElasticsearchService:
     def __init__(self):
         url = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
@@ -104,6 +122,7 @@ class ElasticsearchService:
                 verify_certs=False
             )
             self.index_name = os.getenv("ES_INDEX_NAME", "products_unified")
+            self.enhanced_index_name = os.getenv("ES_ENHANCED_INDEX_NAME", "product_enhanced_descriptions")
             if not self.client.ping():
                 logger.error(f"Could not connect to Elasticsearch at {url}")
         except Exception as e:
@@ -128,6 +147,40 @@ class ElasticsearchService:
             return True
         except Exception as e:
             logger.error(f"Failed to ensure index exists: {e}")
+            return False
+
+    def ensure_enhanced_index_exists(self) -> bool:
+        try:
+            if not self.client.indices.exists(index=self.enhanced_index_name):
+                logger.info(f"Creating index {self.enhanced_index_name} with vector mappings")
+                self.client.indices.create(
+                    index=self.enhanced_index_name,
+                    mappings=ENHANCED_DESCRIPTION_MAPPING["mappings"]
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to ensure enhanced index exists: {e}")
+            return False
+
+    def index_enhanced_description(self, product_id: str, name: str, description: str, embedding: List[float]) -> bool:
+        try:
+            self.ensure_enhanced_index_exists()
+            from datetime import datetime
+            doc = {
+                "product_id": str(product_id),
+                "original_name": name,
+                "generated_description": description,
+                "description_embedding": embedding,
+                "updated_at": datetime.utcnow().isoformat()
+            }
+            self.client.index(
+                index=self.enhanced_index_name,
+                id=str(product_id),
+                document=doc
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to index enhanced description for {product_id}: {e}")
             return False
 
     def index_product(self, product: ProductDocument) -> bool:
@@ -180,9 +233,22 @@ class ElasticsearchService:
     def delete_product(self, product_id: Any) -> bool:
         try:
             self.client.delete(index=self.index_name, id=str(product_id))
+            # Also try to delete from enhanced index if it exists
+            try:
+                self.client.delete(index=self.enhanced_index_name, id=str(product_id))
+            except:
+                pass # Might not exist in enhanced index
             return True
         except Exception as e:
             logger.error(f"Failed to delete product {product_id}: {e}")
+            return False
+
+    def delete_enhanced_description(self, product_id: Any) -> bool:
+        try:
+            self.client.delete(index=self.enhanced_index_name, id=str(product_id))
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete enhanced description {product_id}: {e}")
             return False
 
 # Global instance

@@ -9,6 +9,7 @@ volumes:
   elastic_data:
   elastic_certs:
   elastic_config:
+  redis_data:
 
 
 services:
@@ -64,6 +65,18 @@ services:
     networks:
       - XYZ
 
+  # ---------------- REDIS --------------
+  redis:
+    image: redis:7.2-alpine
+    container_name: mero_ecommerce_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - XYZ
+
   # --------------- APP SERVICE -----------
   app:
     build: .
@@ -74,8 +87,11 @@ services:
     environment:
       ELASTICSEARCH_URL: http://elasticsearch:9200
       ES_INDEX_NAME: ${ES_INDEX_NAME:-products_unified}
+      ES_ENHANCED_INDEX_NAME: ${ES_ENHANCED_INDEX_NAME:-product_enhanced_descriptions}
       ELASTIC_USER: ${ELASTIC_USER:-elastic}
       ELASTIC_PASS: ${ELASTIC_PASS:-changeme}
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
 
       # Shopify
       SHOPIFY_WEBHOOK_SECRET: ${SHOPIFY_WEBHOOK_SECRET}
@@ -98,6 +114,8 @@ services:
     depends_on:
       elasticsearch:
         condition: service_healthy
+      redis:
+        condition: service_started
     volumes:
       - ./logs:/app/logs
       - ./scripts:/app/scripts
@@ -135,5 +153,27 @@ services:
     command: [ "/app/.venv/bin/streamlit", "run", "dashboard.py", "--server.port=8501", "--server.address=0.0.0.0" ]
     depends_on:
       - app
+    networks:
+      - XYZ
+
+  # --------------- CELERY WORKER -----------
+  worker:
+    build: .
+    container_name: mero_ecommerce_worker
+    restart: unless-stopped
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ES_INDEX_NAME: ${ES_INDEX_NAME:-ecommerce_unified}
+      ES_ENHANCED_INDEX_NAME: ${ES_ENHANCED_INDEX_NAME:-product_enhanced_descriptions}
+      ELASTIC_USER: ${ELASTIC_USER:-elastic}
+      ELASTIC_PASS: ${ELASTIC_PASS:-changeme}
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    command: [ "/app/.venv/bin/celery", "-A", "worker.celery_app", "worker", "--loglevel=info" ]
+    depends_on:
+      - redis
+      - app
+    volumes:
+      - ./logs:/app/logs
     networks:
       - XYZ

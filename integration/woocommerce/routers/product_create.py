@@ -11,6 +11,7 @@ from utils.woocommerce_store import (
 )
 from woocommerce.loggers import get_logger
 from base.elasticsearch_service import es_service
+from worker.tasks import enhance_product_description
 from woocommerce.services.woocommerce_services import (
     get_product as fetch_remote_product,
     get_product_variations,
@@ -74,7 +75,8 @@ async def product_created(
             try:
                 logger.info(f"Indexing parent product after variant update: ParentID={parent_id}, VariantID={product_id}")
                 product_doc = transform_product_for_es(merged)
-                es_service.index_product(product_doc)
+                if es_service.index_product(product_doc):
+                    enhance_product_description.delay(product_doc.dict())
                 logger.info(
                     "Successfully indexed parent product after variant create",
                     extra={"parent_id": parent_id, "variant_id": product_id},
@@ -105,7 +107,8 @@ async def product_created(
             try:
                 logger.info(f"Indexing product: ID={product_id}")
                 product_doc = transform_product_for_es(merged)
-                es_service.index_product(product_doc)
+                if es_service.index_product(product_doc):
+                    enhance_product_description.delay(product_doc.dict())
                 logger.info(
                     "Successfully indexed product in ES", extra={"product_id": product_id}
                 )

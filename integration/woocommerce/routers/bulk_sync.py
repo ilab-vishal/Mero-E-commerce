@@ -19,6 +19,7 @@ from config import (
     WOOCOMMERCE_API_VERSION,
 )
 from base.elasticsearch_service import es_service
+from worker.tasks import enhance_product_description
 from utils.woocommerce_store import handle_parent_product, handle_variant_product, get_product
 from woocommerce.utils.product_transformer import transform_product_for_es
 
@@ -201,6 +202,10 @@ def run_bulk_sync_task(store_url: str, consumer_key: str, consumer_secret: str, 
         # Bulk index to Elasticsearch
         result = es_service.bulk_index_products(processed_products)
         
+        # Trigger background enrichment for each processed product using standardized data
+        for doc in processed_products:
+            enhance_product_description.delay(doc.dict())
+
         duration = round(time.time() - start_time, 2)
         logger.info(
             f"Background Sync Completed: {result.get('success_count', 0)} indexed, "

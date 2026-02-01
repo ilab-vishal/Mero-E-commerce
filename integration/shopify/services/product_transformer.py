@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 import re
 from utils.logging import get_logger
 from base.models import ProductDocument, Variant
@@ -11,6 +11,36 @@ def strip_html(text: Optional[str]) -> Optional[str]:
         clean = re.compile("<.*?>")
         return re.sub(clean, "", text).strip()
     return text
+
+
+def normalize_weight(weight: Optional[float], weight_unit: Optional[str]) -> Tuple[Optional[float], str]:
+    """
+    Normalize weight to grams for consistent storage and display.
+    """
+    if weight is None:
+        return None, "g"
+    
+    try:
+        weight = float(weight)
+    except (ValueError, TypeError):
+        return None, "g"
+    
+    if weight == 0:
+        return 0.0, "g"
+    
+    # Normalize unit string
+    unit = (weight_unit or "g").lower().strip()
+    
+    # Conversion factors to grams
+    if unit in ("kg", "kgs", "kilogram", "kilograms"):
+        return round(weight * 1000, 2), "g"
+    elif unit in ("lb", "lbs", "pound", "pounds"):
+        return round(weight * 453.592, 2), "g"
+    elif unit in ("oz", "ounce", "ounces"):
+        return round(weight * 28.3495, 2), "g"
+    else:
+        # Default/already grams
+        return round(weight, 2), "g"
 
 
 def transform_shopify_product(payload: dict, inventory_data: Optional[Dict[str, Dict[str, Any]]] = None) -> ProductDocument:
@@ -66,15 +96,23 @@ def transform_shopify_product(payload: dict, inventory_data: Optional[Dict[str, 
         inv_item = inventory_data.get(inv_id) if inventory_data else None
         
         if inv_item:
-            weight = inv_item.get("weight")
-            weight_unit = inv_item.get("unit", "g")
+            # GraphQL data - already has correct unit from normalize_unit()
+            raw_weight = inv_item.get("weight")
+            raw_unit = inv_item.get("unit", "g")
         else:
-            # Fallback to payload fields, ensuring we don't treat 0 as None
-            weight = v.get("grams") 
-            if weight is None:
-                weight = v.get("weight")
-            
-            weight_unit = v.get("weight_unit") or "g"
+            # REST API fallback
+            # IMPORTANT: "grams" field is ALWAYS in grams regardless of weight_unit
+            raw_weight = v.get("grams")
+            if raw_weight is not None:
+                # grams field exists - value is in grams, ignore weight_unit
+                raw_unit = "g"
+            else:
+                # No grams field, use weight + weight_unit
+                raw_weight = v.get("weight")
+                raw_unit = v.get("weight_unit") or "g"
+        
+        # Normalize all weights to grams for consistency
+        weight, weight_unit = normalize_weight(raw_weight, raw_unit)
         
         variants_list.append(
             Variant(
@@ -84,7 +122,7 @@ def transform_shopify_product(payload: dict, inventory_data: Optional[Dict[str, 
                 compare_at_price=compare_at_price,
                 stock=qty,
                 image=variant_image,
-                weight=float(weight) if weight is not None else None,
+                weight=weight,
                 weight_unit=weight_unit,
                 attributes=attributes
             )

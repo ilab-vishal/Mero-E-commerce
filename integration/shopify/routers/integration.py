@@ -11,6 +11,7 @@ from shopify.services.shopify_services import (
 from base.elasticsearch_service import es_service
 from shopify.services.product_transformer import transform_shopify_product
 from base.models import ProductDocument
+from worker.tasks import enhance_product_description
 from utils.logging import get_logger
 
 router = APIRouter(
@@ -160,10 +161,12 @@ async def background_bulk_sync(store_url: str, access_token: str, client_id: str
                     chunk_data = get_inventory_weights(store_url, access_token, chunk)
                     inventory_data_map.update(chunk_data)
 
+            indexed_raw_data = []
             for product_data in products_batch_data:
                 try:
                     product_doc = transform_shopify_product(product_data, inventory_data=inventory_data_map)
                     batch_to_index.append(product_doc)
+                    indexed_raw_data.append(product_data)
                     
                     # Log the transformed data for visibility
                     logger.json(
@@ -185,6 +188,9 @@ async def background_bulk_sync(store_url: str, access_token: str, client_id: str
                         f"Successfully bulk indexed {len(batch_to_index)} "
                         f"products (Total: {total_indexed})"
                     )
+                    # Trigger background enrichment for each product in the batch using standardized data
+                    for product_doc in batch_to_index:
+                        enhance_product_description.delay(product_doc.dict())
                 else:
                     logger.error(f"Failed to bulk index batch for {store_url}")
             

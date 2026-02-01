@@ -11,6 +11,7 @@ from utils.woocommerce_store import (
 )
 from woocommerce.loggers import get_logger
 from base.elasticsearch_service import es_service
+from worker.tasks import enhance_product_description
 from woocommerce.services.woocommerce_services import (
     get_product as fetch_remote_product,
     get_product_variations,
@@ -115,6 +116,8 @@ async def product_updated(
         result = es_service.index_product(product_doc)
         if result:
             logger.info("Successfully updated product in ES", extra={"product_id": merged.get('id')})
+            # Trigger background enrichment with standardized ProductDocument
+            enhance_product_description.delay(product_doc.dict())
         else:
              logger.error("ES index returned False", extra={"product_id": merged.get('id')})
              return JSONResponse(

@@ -9,6 +9,7 @@ from shopify.utils.shopify_router_utils import (
 )
 from shopify.services.product_transformer import transform_shopify_product
 from base.elasticsearch_service import es_service
+from worker.tasks import enhance_product_description
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -82,6 +83,8 @@ async def product_updated(
         
         if es_service.index_product(product_doc):
             logger.info(f"✅ Successfully updated product {product_doc.product_id} in Elasticsearch")
+            # Trigger background enrichment with standardized ProductDocument
+            enhance_product_description.delay(product_doc.dict())
         else:
             logger.error(f"❌ Failed to update product {product_doc.product_id} in Elasticsearch")
         
