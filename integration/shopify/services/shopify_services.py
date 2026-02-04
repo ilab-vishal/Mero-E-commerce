@@ -5,7 +5,7 @@ from shopify.config import (
     get_access_token_url,
     get_product_url,
     list_products_url,
-    get_connection_test_url
+    get_products_count_url
 )
 
 
@@ -118,7 +118,7 @@ def get_connection_test_results(integration_data: dict):
         if not access_token:
             return {"count": None, "error": "Failed to get access token"}
         
-        connection_test_url = get_connection_test_url(store_url)
+        connection_test_url = get_products_count_url(store_url)
         headers = {
             "Content-Type": "application/json",
             "X-Shopify-Access-Token": access_token
