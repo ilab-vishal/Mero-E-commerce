@@ -39,6 +39,15 @@ ELASTIC_PASS: str = os.getenv("ELASTIC_PASS", "changeme")
 KIBANA_ES_TOKEN: str = os.getenv("KIBANA_ES_TOKEN", "")
 NGROK_URL: str = os.getenv("NGROK_URL", "")
 
+# --- OpenAI / LLM Configuration ---
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+OPENAI_CHAT_MODEL: str = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o")
+OPENAI_EMBEDDING_MODEL: str = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0"))
+
+# --- Redis Configuration ---
+REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
 
 # --- URL Helper Functions (Shopify) ---
 def get_shopify_admin_api_url(store_url: str = None) -> str:
