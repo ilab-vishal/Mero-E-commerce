@@ -1,32 +1,38 @@
-import os
+"""LLM Service for chat models and embeddings using LangChain."""
+
+# Standard library imports
 import json
-from typing import List, Optional, Any, Dict
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_core.prompts import ChatPromptTemplate
+from typing import Any, Dict, List, Optional
+
+# Third-party imports
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+
+# Local imports
+from config import OPENAI_API_KEY, OPENAI_CHAT_MODEL, OPENAI_EMBEDDING_MODEL, LLM_TEMPERATURE
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 class LLMService:
     def __init__(self):
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            logger.error("OPENAI_API_KEY not found in environment")
+        if not OPENAI_API_KEY:
+            logger.error("OPENAI_API_KEY not found in configuration")
             self.chat_model = None
             self.embeddings_model = None
             return
             
-        # Initialize LangChain Models for OpenAI
+        # Initialize LangChain Models using config values
         self.chat_model = ChatOpenAI(
-            model="gpt-4.1",
-            api_key=api_key,
-            temperature=0
+            model=OPENAI_CHAT_MODEL,
+            api_key=OPENAI_API_KEY,
+            temperature=LLM_TEMPERATURE
         )
         
         self.embeddings_model = OpenAIEmbeddings(
-            model="text-embedding-3-small",
-            api_key=api_key
+            model=OPENAI_EMBEDDING_MODEL,
+            api_key=OPENAI_API_KEY
         )
 
     def generate_description(self, product_data: Dict[str, Any]) -> Optional[str]:
