@@ -19,6 +19,7 @@ dependencies = [
     "langchain-core>=0.1.0",
     "langchain-openai>=0.0.5",
     "langchain-elasticsearch>=0.1.0",
+    "langgraph>=0.0.10",
 ]
 
 [dependency-groups]

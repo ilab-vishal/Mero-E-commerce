@@ -150,9 +150,11 @@ services:
       API_URL: http://app:8000
       SHOPIFY_STORE_URL: ${SHOPIFY_STORE_URL}
       WOOCOMMERCE_STORE_URL: ${WOOCOMMERCE_STORE_URL}
+      REDIS_URL: redis://redis:6379/0
     command: [ "/app/.venv/bin/streamlit", "run", "dashboard.py", "--server.port=8501", "--server.address=0.0.0.0" ]
     depends_on:
       - app
+      - redis
     networks:
       - XYZ
 
@@ -163,7 +165,7 @@ services:
     restart: unless-stopped
     environment:
       ELASTICSEARCH_URL: http://elasticsearch:9200
-      ES_INDEX_NAME: ${ES_INDEX_NAME:-ecommerce_unified}
+      ES_INDEX_NAME: ${ES_INDEX_NAME:-products_unified}
       ES_ENHANCED_INDEX_NAME: ${ES_ENHANCED_INDEX_NAME:-product_enhanced_descriptions}
       ELASTIC_USER: ${ELASTIC_USER:-elastic}
       ELASTIC_PASS: ${ELASTIC_PASS:-changeme}

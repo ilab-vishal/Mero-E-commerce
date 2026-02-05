@@ -13,13 +13,13 @@ ENV UV_COMPILE_BYTECODE=1
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies using uv
-RUN uv sync --frozen --no-install-project --no-dev
+RUN uv sync --no-install-project --no-dev
 
 # Copy project files
 COPY . .
 
 # Install the project itself
-RUN uv sync --frozen --no-dev
+RUN uv sync --no-dev
 
 # Expose the application port
 EXPOSE 8000

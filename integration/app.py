@@ -1,22 +1,18 @@
 import logging
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from dotenv import load_dotenv
 import os
 
-# Load environment variables
-load_dotenv()
-
-# Internal imports
-from shopify.routers import integration as shopify_router
-from shopify.webhook import router as shopify_webhook_router
-from woocommerce.routers import connection as woo_connection_router
-from woocommerce.routers import bulk_sync as woo_sync_router
-from woocommerce.webhook.woocommerce import router as woo_webhook_router
+from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from base.elasticsearch_service import es_service
-from utils.logging import setup_logging
 from config import APP_NAME, APP_HOST, APP_PORT, DEBUG
+from shopify.routers import integration as shopify_router
+from shopify.webhook import router as shopify_webhook_router
+from utils.logging import setup_logging
+from woocommerce.routers import bulk_sync as woo_sync_router
+from woocommerce.routers import connection as woo_connection_router
+from woocommerce.webhook.woocommerce import router as woo_webhook_router
 
 # Initialize logging
 setup_logging()
@@ -49,6 +45,10 @@ app.include_router(woo_connection_router.router)
 app.include_router(woo_sync_router.router)
 app.include_router(woo_webhook_router)
 
+# Register Chatbot router
+from chatbot.router import router as chatbot_router
+app.include_router(chatbot_router)
+
 @app.on_event("startup")
 async def startup_event():
     """
@@ -57,10 +57,12 @@ async def startup_event():
     """
     # Ensure Elasticsearch index exists
     success = es_service.ensure_index_exists()
-    if success:
-        logger.info("Elasticsearch index verified/created.")
+    success_enhanced = es_service.ensure_enhanced_index_exists()
+    
+    if success and success_enhanced:
+        logger.info("Elasticsearch indices verified/created.")
     else:
-        logger.error("Failed to verify/create Elasticsearch index.")
+        logger.error("Failed to verify/create Elasticsearch indices.")
 
 
 @app.get("/health", tags=["Health"])
