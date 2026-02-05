@@ -1,10 +1,10 @@
-# ============================================================
 # WOOCOMMERCE PRODUCT STORE
-# Merges parent products and variants 
-# ============================================================
+# Merges parent products and variants
+
 
 # In-memory store for merged products
 import logging
+
 logger = logging.getLogger(__name__)
 
 PRODUCT_STORE = {}
@@ -43,7 +43,7 @@ def handle_parent_product(product: dict) -> dict | None:
         "tags": product.get("tags", []),
         "brands": product.get("brands", []),
         "images": product.get("images", []),
-        "variants": existing_variants
+        "variants": existing_variants,
     }
 
     return PRODUCT_STORE[product_id]
@@ -60,15 +60,16 @@ def handle_variant_product(variant: dict) -> dict | None:
         return None
 
     logger.debug(f"Handling variant: ID={variant_id}, Parent={parent_id}")
-    logger.debug(f"Variant Raw Data Snippet: price={variant.get('price')}, stock={variant.get('stock_quantity')}")
-
+    logger.debug(
+        f"Variant Raw Data Snippet: price={variant.get('price')}, stock={variant.get('stock_quantity')}"
+    )
 
     # Create placeholder parent if missing
     if parent_id not in PRODUCT_STORE:
         PRODUCT_STORE[parent_id] = {
             "id": parent_id,
             "name": None,  # Will be updated when parent webhook arrives
-            "variants": []
+            "variants": [],
         }
 
     # Extract variant attributes
@@ -89,7 +90,11 @@ def handle_variant_product(variant: dict) -> dict | None:
         "sale_price": variant.get("sale_price"),
         "on_sale": variant.get("on_sale"),
         "weight": variant.get("weight"),
-        "image": variant.get("image", {}).get("src") if isinstance(variant.get("image"), dict) else None,
+        "image": (
+            variant.get("image", {}).get("src")
+            if isinstance(variant.get("image"), dict)
+            else None
+        ),
         "stock_status": variant.get("stock_status"),
         "stock_quantity": variant.get("stock_quantity"),
         "purchasable": variant.get("purchasable"),
@@ -97,7 +102,9 @@ def handle_variant_product(variant: dict) -> dict | None:
     }
 
     # Remove existing variant with same ID (update case)
-    variants = [v for v in PRODUCT_STORE[parent_id].get("variants", []) if v["id"] != variant_id]
+    variants = [
+        v for v in PRODUCT_STORE[parent_id].get("variants", []) if v["id"] != variant_id
+    ]
     variants.append(variant_data)
     PRODUCT_STORE[parent_id]["variants"] = variants
 
@@ -116,7 +123,11 @@ def handle_product_delete(product: dict) -> bool:
     if product_type == "variation" and parent_id:
         # Delete variant from parent
         if parent_id in PRODUCT_STORE:
-            variants = [v for v in PRODUCT_STORE[parent_id].get("variants", []) if v["id"] != product_id]
+            variants = [
+                v
+                for v in PRODUCT_STORE[parent_id].get("variants", [])
+                if v["id"] != product_id
+            ]
             PRODUCT_STORE[parent_id]["variants"] = variants
     else:
         # Delete entire product

@@ -1,5 +1,5 @@
 from base.models import ProductDocument, Variant
-from woocommerce.loggers import get_logger
+from utils.logging import get_logger
 import re
 
 logger = get_logger("product_transformer")
@@ -20,11 +20,11 @@ def transform_product_for_es(product: dict) -> ProductDocument:
         raise ValueError("Empty product data")
 
     product_id = str(product.get("id"))
-    
+
     # Flatten attributes for easier search
     raw_attributes = product.get("attributes", [])
     flat_attributes = {}
-    
+
     # Handle both raw WOO attributes (list of dicts) and stored attributes (dict)
     if isinstance(raw_attributes, list):
         for attr in raw_attributes:
@@ -39,7 +39,7 @@ def transform_product_for_es(product: dict) -> ProductDocument:
     variants_list = []
     prices = []
     total_inventory = 0
-    
+
     for v in product.get("variants", []):
         try:
             # Handle variant attributes
@@ -56,14 +56,18 @@ def transform_product_for_es(product: dict) -> ProductDocument:
 
             price = float(v.get("price", 0) or 0)
             prices.append(price)
-            
+
             # Use regular_price as compare_at_price if product is on sale
             reg_price = float(v.get("regular_price", 0) or 0)
-            compare_price = reg_price if v.get("on_sale") or v.get("sale_price") else None
-            
-            stock = int(v.get("stock_quantity", 0) if v.get("stock_quantity") is not None else 0)
+            compare_price = (
+                reg_price if v.get("on_sale") or v.get("sale_price") else None
+            )
+
+            stock = int(
+                v.get("stock_quantity", 0) if v.get("stock_quantity") is not None else 0
+            )
             total_inventory += stock
-            
+
             # Resolve image (might be string or dict)
             v_image = v.get("image")
             if isinstance(v_image, dict):
@@ -71,7 +75,7 @@ def transform_product_for_es(product: dict) -> ProductDocument:
 
             # Weight Handling - fix to allow 0 weight
             weight = v.get("weight")
-            weight_unit = v.get("weight_unit") or "kg" # Woo defaults to store setting
+            weight_unit = v.get("weight_unit") or "kg"  # Woo defaults to store setting
 
             variants_list.append(
                 Variant(
@@ -81,9 +85,13 @@ def transform_product_for_es(product: dict) -> ProductDocument:
                     compare_at_price=compare_price,
                     stock=stock,
                     image=v_image,
-                    weight=float(weight) if weight and weight != "" else 0.0 if weight == 0 or weight == "0" else None,
+                    weight=(
+                        float(weight)
+                        if weight and weight != ""
+                        else 0.0 if weight == 0 or weight == "0" else None
+                    ),
                     weight_unit=weight_unit,
-                    attributes=variant_flat_attrs
+                    attributes=variant_flat_attrs,
                 )
             )
         except Exception as e:
@@ -95,18 +103,20 @@ def transform_product_for_es(product: dict) -> ProductDocument:
     for img in raw_images:
         if isinstance(img, dict):
             src = img.get("src")
-            if src: images.append(src)
+            if src:
+                images.append(src)
         elif isinstance(img, str):
             images.append(img)
-            
+
     main_image = images[0] if images else None
-    
+
     raw_tags = product.get("tags", [])
     tags = []
     for tag in raw_tags:
         if isinstance(tag, dict):
             name = tag.get("name")
-            if name: tags.append(name)
+            if name:
+                tags.append(name)
         elif isinstance(tag, str):
             tags.append(tag)
 
@@ -115,10 +125,11 @@ def transform_product_for_es(product: dict) -> ProductDocument:
     for cat in raw_categories:
         if isinstance(cat, dict):
             name = cat.get("name")
-            if name: categories.append(name)
+            if name:
+                categories.append(name)
         elif isinstance(cat, str):
             categories.append(cat)
-    
+
     # Get brand from brands array if available
     brands = product.get("brands", [])
     brand = None
@@ -127,7 +138,7 @@ def transform_product_for_es(product: dict) -> ProductDocument:
             brand = brands[0].get("name")
         elif isinstance(brands[0], str):
             brand = brands[0]
-    
+
     prices = sorted([p for p in prices if p is not None])
     min_price = prices[0] if prices else 0.0
     max_price = prices[-1] if prices else 0.0
@@ -148,6 +159,5 @@ def transform_product_for_es(product: dict) -> ProductDocument:
         on_sale=product.get("on_sale", False),
         variants=variants_list,
         primary_image=main_image,
-        images=images
+        images=images,
     )
-    

@@ -3,13 +3,12 @@ import json
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from utils.woocommerce_formatter import format_merged_product
-from utils.woocommerce_store import (
+from woocommerce.utils.woocommerce_store import (
     get_product,
     handle_parent_product,
     handle_variant_product,
 )
-from woocommerce.loggers import get_logger
+from utils.logging import get_logger
 from base.elasticsearch_service import es_service
 from worker.tasks import enhance_product_description
 from woocommerce.services.woocommerce_services import (
@@ -46,9 +45,7 @@ async def product_updated(
     if not x_wc_webhook_signature or not verify_woocommerce_webhook(
         body_bytes, x_wc_webhook_signature
     ):
-        logger.warning(
-            "Invalid webhook signature", extra={"topic": x_wc_webhook_topic}
-        )
+        logger.warning("Invalid webhook signature", extra={"topic": x_wc_webhook_topic})
         raise HTTPException(status_code=401, detail="Invalid webhook")
 
     # Parse payload
@@ -71,19 +68,22 @@ async def product_updated(
             if parent_product:
                 # Ensure parent details are cached/updated from full API data
                 handle_parent_product(parent_product)
-                
+
                 variations = get_product_variations(parent_id)
                 for variant_data in variations:
                     handle_variant_product(variant_data)
         except Exception as e:
-            logger.error(f"Error fetching parent/variants for variation update: {e}", extra={"parent_id": parent_id})
+            logger.error(
+                f"Error fetching parent/variants for variation update: {e}",
+                extra={"parent_id": parent_id},
+            )
 
         # Always re-index the parent
         merged = get_product(parent_id)
         if merged:
-             logger.info(
+            logger.info(
                 "Parent product ready for re-indexing after variant update",
-                extra={"parent_id": parent_id, "variant_id": product_id}
+                extra={"parent_id": parent_id, "variant_id": product_id},
             )
     else:
         logger.info(f"Processing parent product update: ID={product_id}")
@@ -93,18 +93,25 @@ async def product_updated(
             merged = handle_parent_product(full_product)
         else:
             # Fallback to webhook payload if API fetch fails
-            logger.warning(f"Failed to fetch full product from API for ID={product_id}, falling back to webhook data")
+            logger.warning(
+                f"Failed to fetch full product from API for ID={product_id}, falling back to webhook data"
+            )
             merged = handle_parent_product(product)
-        
+
         # If variable product, fetch and update all variations
         if product.get("type") == "variable":
-            logger.info(f"Fetching variations for updated parent product: ID={product_id}")
+            logger.info(
+                f"Fetching variations for updated parent product: ID={product_id}"
+            )
             try:
                 variations = get_product_variations(product_id)
                 for variant_data in variations:
                     handle_variant_product(variant_data)
             except Exception as e:
-                logger.error(f"Error fetching variations for parent update: {e}", extra={"product_id": product_id})
+                logger.error(
+                    f"Error fetching variations for parent update: {e}",
+                    extra={"product_id": product_id},
+                )
 
         if merged:
             logger.info("Parent product processed", extra={"product_id": product_id})
@@ -115,25 +122,27 @@ async def product_updated(
         product_doc = transform_product_for_es(merged)
         result = es_service.index_product(product_doc)
         if result:
-            logger.info("Successfully updated product in ES", extra={"product_id": merged.get('id')})
+            logger.info(
+                "Successfully updated product in ES",
+                extra={"product_id": merged.get("id")},
+            )
             # Trigger background enrichment with standardized ProductDocument
             enhance_product_description.delay(product_doc.dict())
         else:
-             logger.error("ES index returned False", extra={"product_id": merged.get('id')})
-             return JSONResponse(
+            logger.error(
+                "ES index returned False", extra={"product_id": merged.get("id")}
+            )
+            return JSONResponse(
                 status_code=500,
                 content={"status": "error", "reason": "ES index failed"},
             )
     except Exception as e:
         logger.error(
             "Exception during ES index",
-            extra={"error": str(e), "product_id": merged.get('id')}
+            extra={"error": str(e), "product_id": merged.get("id")},
         )
         return JSONResponse(
             status_code=500, content={"status": "error", "reason": str(e)}
         )
-
-    # Debug output
-    format_merged_product(merged)
 
     return {"status": "success", "product_id": product_id}

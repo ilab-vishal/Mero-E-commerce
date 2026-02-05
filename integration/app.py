@@ -1,12 +1,8 @@
 import logging
-import os
 
-from dotenv import load_dotenv
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 
 from base.elasticsearch_service import es_service
-from config import APP_NAME, APP_HOST, APP_PORT, DEBUG
 from shopify.routers import integration as shopify_router
 from shopify.webhook import router as shopify_webhook_router
 from utils.logging import setup_logging
@@ -47,7 +43,9 @@ app.include_router(woo_webhook_router)
 
 # Register Chatbot router
 from chatbot.router import router as chatbot_router
+
 app.include_router(chatbot_router)
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -58,7 +56,7 @@ async def startup_event():
     # Ensure Elasticsearch index exists
     success = es_service.ensure_index_exists()
     success_enhanced = es_service.ensure_enhanced_index_exists()
-    
+
     if success and success_enhanced:
         logger.info("Elasticsearch indices verified/created.")
     else:
@@ -75,5 +73,5 @@ def root():
     return {
         "message": "Mero E-commerce Integration API",
         "status": "online",
-        "docs": "/docs"
+        "docs": "/docs",
     }

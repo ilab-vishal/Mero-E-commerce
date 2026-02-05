@@ -3,12 +3,12 @@ import json
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from utils.woocommerce_store import (
+from woocommerce.utils.woocommerce_store import (
     get_all_products,
     get_product,
     handle_product_delete,
 )
-from woocommerce.loggers import get_logger
+from utils.logging import get_logger
 from base.elasticsearch_service import es_service
 from woocommerce.utils.webhook_guard import is_woocommerce_ping
 from woocommerce.utils.product_transformer import transform_product_for_es

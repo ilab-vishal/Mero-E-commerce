@@ -3,13 +3,12 @@ import json
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from utils.woocommerce_formatter import format_merged_product
-from utils.woocommerce_store import (
+from woocommerce.utils.woocommerce_store import (
     get_product,
     handle_parent_product,
     handle_variant_product,
 )
-from woocommerce.loggers import get_logger
+from utils.logging import get_logger
 from base.elasticsearch_service import es_service
 from worker.tasks import enhance_product_description
 from woocommerce.services.woocommerce_services import (
@@ -73,7 +72,9 @@ async def product_created(
         merged = get_product(parent_id)
         if merged:
             try:
-                logger.info(f"Indexing parent product after variant update: ParentID={parent_id}, VariantID={product_id}")
+                logger.info(
+                    f"Indexing parent product after variant update: ParentID={parent_id}, VariantID={product_id}"
+                )
                 product_doc = transform_product_for_es(merged)
                 if es_service.index_product(product_doc):
                     enhance_product_description.delay(product_doc.dict())
@@ -87,7 +88,9 @@ async def product_created(
                     extra={"error": str(e), "parent_id": parent_id},
                 )
         else:
-            logger.warning(f"Parent product not found for variant: VariantID={product_id}, ParentID={parent_id}")
+            logger.warning(
+                f"Parent product not found for variant: VariantID={product_id}, ParentID={parent_id}"
+            )
 
     else:
         logger.info(f"Processing simple/variable product: ID={product_id}")
@@ -95,13 +98,18 @@ async def product_created(
 
         # If variable product, fetch and update all variations (same as update logic)
         if product.get("type") == "variable":
-            logger.info(f"Fetching variations for created parent product: ID={product_id}")
+            logger.info(
+                f"Fetching variations for created parent product: ID={product_id}"
+            )
             try:
                 variations = get_product_variations(product_id)
                 for variant_data in variations:
                     handle_variant_product(variant_data)
             except Exception as e:
-                logger.error(f"Error fetching variations for parent creation: {e}", extra={"product_id": product_id})
+                logger.error(
+                    f"Error fetching variations for parent creation: {e}",
+                    extra={"product_id": product_id},
+                )
 
         if merged:
             try:
@@ -110,7 +118,8 @@ async def product_created(
                 if es_service.index_product(product_doc):
                     enhance_product_description.delay(product_doc.dict())
                 logger.info(
-                    "Successfully indexed product in ES", extra={"product_id": product_id}
+                    "Successfully indexed product in ES",
+                    extra={"product_id": product_id},
                 )
             except Exception as e:
                 logger.error(
@@ -118,8 +127,8 @@ async def product_created(
                     extra={"error": str(e), "product_id": product_id},
                 )
         else:
-             logger.warning(f"Product processing returned None (possibly ignored or failed), ID={product_id}")
-
-    format_merged_product(merged)  # debug only
+            logger.warning(
+                f"Product processing returned None (possibly ignored or failed), ID={product_id}"
+            )
 
     return {"status": "success", "product_id": product_id}

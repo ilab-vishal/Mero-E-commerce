@@ -1,7 +1,6 @@
-# ============================================================
 # BULK SYNC ROUTER
 # Endpoint to bulk fetch WooCommerce products and index to ES
-# ============================================================
+
 
 import time
 import logging
@@ -9,7 +8,6 @@ import traceback
 from typing import Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
-from requests.auth import HTTPBasicAuth
 import requests
 
 from config import (
@@ -20,7 +18,11 @@ from config import (
 )
 from base.elasticsearch_service import es_service
 from worker.tasks import enhance_product_description
-from utils.woocommerce_store import handle_parent_product, handle_variant_product, get_product
+from woocommerce.utils.woocommerce_store import (
+    handle_parent_product,
+    handle_variant_product,
+    get_product,
+)
 from woocommerce.utils.product_transformer import transform_product_for_es
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,7 @@ router = APIRouter(prefix="/api/woocommerce", tags=["WooCommerce Bulk Sync"])
 
 class BulkSyncRequest(BaseModel):
     """Request model for bulk sync endpoint."""
+
     store_url: Optional[str] = None
     consumer_key: Optional[str] = None
     consumer_secret: Optional[str] = None
@@ -38,6 +41,7 @@ class BulkSyncRequest(BaseModel):
 
 class BulkSyncResponse(BaseModel):
     """Response model for bulk sync endpoint."""
+
     status: str
     message: str = ""
     total_fetched: Optional[int] = 0
@@ -50,16 +54,18 @@ class BulkSyncResponse(BaseModel):
 def _build_products_url(store_url: str, page: int, per_page: int) -> str:
     """Build WooCommerce products API URL with pagination."""
     # Clean up the URL
-    if not store_url.startswith(('http://', 'https://')):
+    if not store_url.startswith(("http://", "https://")):
         store_url = f"http://{store_url}"
-    
-    base_url = store_url.rstrip('/')
+
+    base_url = store_url.rstrip("/")
     api_version = WOOCOMMERCE_API_VERSION or "wc/v3"
-    
+
     return f"{base_url}/wp-json/{api_version}/products?page={page}&per_page={per_page}"
 
 
-def _fetch_all_products(store_url: str, consumer_key: str, consumer_secret: str, per_page: int) -> tuple:
+def _fetch_all_products(
+    store_url: str, consumer_key: str, consumer_secret: str, per_page: int
+) -> tuple:
     """
     Fetch all products from WooCommerce with pagination.
     Uses query parameter authentication (more reliable through proxies/ngrok).
@@ -67,52 +73,67 @@ def _fetch_all_products(store_url: str, consumer_key: str, consumer_secret: str,
     """
     all_products = []
     page = 1
-    
+
     while True:
         url = _build_products_url(store_url, page, per_page)
         # Use query parameter authentication (more reliable for ngrok)
-        url_with_auth = f"{url}&consumer_key={consumer_key}&consumer_secret={consumer_secret}"
-        
+        url_with_auth = (
+            f"{url}&consumer_key={consumer_key}&consumer_secret={consumer_secret}"
+        )
+
         logger.info(f"Fetching products page {page}: {url}")
-        
+
         try:
             response = requests.get(url_with_auth, timeout=30)
-            
+
             if response.status_code == 401:
-                return [], f"Authentication failed (401). Check your consumer_key and consumer_secret."
-            
+                return (
+                    [],
+                    f"Authentication failed (401). Check your consumer_key and consumer_secret.",
+                )
+
             if response.status_code != 200:
                 return [], f"WooCommerce API error: {response.status_code}"
-            
+
             try:
                 products = response.json()
             except Exception as json_err:
-                return [], f"Failed to parse WooCommerce response as JSON: {str(json_err)}"
-            
+                return (
+                    [],
+                    f"Failed to parse WooCommerce response as JSON: {str(json_err)}",
+                )
+
             if not products or not isinstance(products, list):
                 break
-            
+
             all_products.extend(products)
-            logger.info(f"Page {page}: fetched {len(products)} products (total: {len(all_products)})")
-            
+            logger.info(
+                f"Page {page}: fetched {len(products)} products (total: {len(all_products)})"
+            )
+
             # Check pagination
-            total_pages = int(response.headers.get('X-WP-TotalPages', 1))
+            total_pages = int(response.headers.get("X-WP-TotalPages", 1))
             if page >= total_pages:
                 break
-            
+
             page += 1
-            
+
         except requests.exceptions.Timeout:
             return [], f"Request timeout while fetching page {page}."
         except requests.exceptions.ConnectionError as e:
-            return [], f"Connection error: {str(e)}. Make sure the store URL is accessible from the container."
+            return (
+                [],
+                f"Connection error: {str(e)}. Make sure the store URL is accessible from the container.",
+            )
         except Exception as e:
             return [], f"Error fetching products: {str(e)}"
-    
+
     return all_products, None
 
 
-def _fetch_variations(store_url: str, consumer_key: str, consumer_secret: str, product_id: int) -> list:
+def _fetch_variations(
+    store_url: str, consumer_key: str, consumer_secret: str, product_id: int
+) -> list:
     """
     Fetch all variations for a specific variable product.
     """
@@ -120,45 +141,54 @@ def _fetch_variations(store_url: str, consumer_key: str, consumer_secret: str, p
     params = {
         "consumer_key": consumer_key,
         "consumer_secret": consumer_secret,
-        "per_page": 100  # Max variations per page
+        "per_page": 100,  # Max variations per page
     }
-    
+
     try:
         response = requests.get(url, params=params, timeout=30)
         if response.status_code == 200:
             return response.json()
-        logger.warning(f"Failed to fetch variations for product {product_id}: {response.status_code}")
+        logger.warning(
+            f"Failed to fetch variations for product {product_id}: {response.status_code}"
+        )
         return []
     except Exception as e:
         logger.error(f"Error fetching variations for product {product_id}: {e}")
         return []
 
 
-def _process_products_for_indexing(products: list, store_url: str = None, consumer_key: str = None, consumer_secret: str = None) -> list:
+def _process_products_for_indexing(
+    products: list,
+    store_url: str = None,
+    consumer_key: str = None,
+    consumer_secret: str = None,
+) -> list:
     """
     Process raw WooCommerce products into merged format suitable for ES indexing.
     Populates the shared PRODUCT_STORE for consistency with webhooks.
     """
     processed_ids = []
-    
+
     for product in products:
         product_type = product.get("type", "simple")
         product_id = product.get("id")
-        
+
         # 1. Update/Create the parent in PRODUCT_STORE
         handle_parent_product(product)
-        
+
         if product_type == "variable" and store_url and consumer_key:
             # Fetch full variation data
             logger.info(f"Fetching variations for variable product {product_id}...")
-            variations = _fetch_variations(store_url, consumer_key, consumer_secret, product_id)
-            
+            variations = _fetch_variations(
+                store_url, consumer_key, consumer_secret, product_id
+            )
+
             # 2. Update each variant in PRODUCT_STORE
             for variant in variations:
                 handle_variant_product(variant)
-            
+
         processed_ids.append(product_id)
-    
+
     # Return complete merged objects from the store transformed for ES
     docs = []
     for pid in processed_ids:
@@ -168,40 +198,44 @@ def _process_products_for_indexing(products: list, store_url: str = None, consum
                 docs.append(transform_product_for_es(merged))
             except Exception as e:
                 logger.error(f"Failed to transform product {pid} for ES: {e}")
-                
+
     return docs
 
 
-def run_bulk_sync_task(store_url: str, consumer_key: str, consumer_secret: str, per_page: int):
+def run_bulk_sync_task(
+    store_url: str, consumer_key: str, consumer_secret: str, per_page: int
+):
     """
     Background worker task for bulk fetching and indexing.
     """
     try:
         start_time = time.time()
         logger.info(f"Background Sync: Starting for {store_url}")
-        
+
         # Fetch all products from WooCommerce
-        products, error = _fetch_all_products(store_url, consumer_key, consumer_secret, per_page)
-        
+        products, error = _fetch_all_products(
+            store_url, consumer_key, consumer_secret, per_page
+        )
+
         if error:
             logger.error(f"Background Sync Error: {error}")
             return
-        
+
         if not products:
             logger.info("Background Sync: No products found.")
             return
-        
+
         # Process products (fetch variations if needed)
         processed_products = _process_products_for_indexing(
-            products, 
+            products,
             store_url=store_url,
             consumer_key=consumer_key,
-            consumer_secret=consumer_secret
+            consumer_secret=consumer_secret,
         )
-        
+
         # Bulk index to Elasticsearch
         result = es_service.bulk_index_products(processed_products)
-        
+
         # Trigger background enrichment for each processed product using standardized data
         for doc in processed_products:
             enhance_product_description.delay(doc.dict())
@@ -217,7 +251,9 @@ def run_bulk_sync_task(store_url: str, consumer_key: str, consumer_secret: str, 
 
 
 @router.post("/sync", response_model=BulkSyncResponse)
-async def bulk_sync_products(request: BulkSyncRequest, background_tasks: BackgroundTasks):
+async def bulk_sync_products(
+    request: BulkSyncRequest, background_tasks: BackgroundTasks
+):
     """
     Trigger a bulk sync of WooCommerce products in the background.
     """
@@ -227,34 +263,32 @@ async def bulk_sync_products(request: BulkSyncRequest, background_tasks: Backgro
         consumer_key = request.consumer_key or WOOCOMMERCE_CONSUMER_KEY
         consumer_secret = request.consumer_secret or WOOCOMMERCE_CONSUMER_SECRET
         per_page = min(request.per_page, 100)
-        
+
         # Validate credentials
         if not store_url:
             raise HTTPException(status_code=400, detail="Store URL is required")
         if not consumer_key or not consumer_secret:
-            raise HTTPException(status_code=400, detail="Consumer key and secret are required")
-        
+            raise HTTPException(
+                status_code=400, detail="Consumer key and secret are required"
+            )
+
         # Pre-flight check: Elasticsearch connection
         if not es_service.check_connection():
             raise HTTPException(
-                status_code=503, 
-                detail="Elasticsearch is not available. Please ensure it's running."
+                status_code=503,
+                detail="Elasticsearch is not available. Please ensure it's running.",
             )
-        
+
         # Trigger background task
         background_tasks.add_task(
-            run_bulk_sync_task,
-            store_url,
-            consumer_key,
-            consumer_secret,
-            per_page
+            run_bulk_sync_task, store_url, consumer_key, consumer_secret, per_page
         )
-        
+
         return BulkSyncResponse(
             status="accepted",
-            message=f"Sync started for {store_url}. Running in background."
+            message=f"Sync started for {store_url}. Running in background.",
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -269,14 +303,16 @@ async def get_sync_status():
     Useful for pre-flight checks before running bulk sync.
     """
     es_connected = es_service.check_connection()
-    
+
     return {
         "elasticsearch": {
             "status": "connected" if es_connected else "disconnected",
-            "index": es_service.index_name if es_connected else None
+            "index": es_service.index_name if es_connected else None,
         },
         "woocommerce": {
             "configured_store_url": WOOCOMMERCE_STORE_URL,
-            "has_credentials": bool(WOOCOMMERCE_CONSUMER_KEY and WOOCOMMERCE_CONSUMER_SECRET)
-        }
+            "has_credentials": bool(
+                WOOCOMMERCE_CONSUMER_KEY and WOOCOMMERCE_CONSUMER_SECRET
+            ),
+        },
     }
